@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 @main
 struct IronRecordApp: App {
@@ -13,5 +14,16 @@ struct IronRecordApp: App {
         WindowGroup {
             ContentView()
         }
+        .modelContainer(
+            for: [
+                Exercise.self,
+                WorkoutTemplate.self,
+                TemplateExercise.self,
+                Routine.self,
+                RoutineDay.self,
+                WorkoutSession.self,
+                SetEntry.self
+            ]
+        )
     }
 }
