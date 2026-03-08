@@ -11,43 +11,12 @@ import SwiftData
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
 
-    @State private var selectedTab: AppTab = .home
     @State private var hasSeeded = false
     @State private var seedErrorMessage: String?
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            NavigationStack {
-                HomeView()
-            }
-            .tabItem {
-                Label(AppTab.home.title, systemImage: AppTab.home.systemImage)
-            }
-            .tag(AppTab.home)
-
-            NavigationStack {
-                TemplatesView()
-            }
-            .tabItem {
-                Label(AppTab.templates.title, systemImage: AppTab.templates.systemImage)
-            }
-            .tag(AppTab.templates)
-
-            NavigationStack {
-                RoutinesView()
-            }
-            .tabItem {
-                Label(AppTab.routines.title, systemImage: AppTab.routines.systemImage)
-            }
-            .tag(AppTab.routines)
-
-            NavigationStack {
-                SessionsView()
-            }
-            .tabItem {
-                Label(AppTab.sessions.title, systemImage: AppTab.sessions.systemImage)
-            }
-            .tag(AppTab.sessions)
+        NavigationStack {
+            TemplatesView()
         }
         .task {
             seedIfNeeded()
@@ -90,39 +59,6 @@ struct ContentView: View {
     }
 }
 
-private enum AppTab: Hashable {
-    case home
-    case templates
-    case routines
-    case sessions
-
-    var title: String {
-        switch self {
-        case .home:
-            "Home"
-        case .templates:
-            "Templates"
-        case .routines:
-            "Routines"
-        case .sessions:
-            "Sessions"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .home:
-            "house"
-        case .templates:
-            "list.bullet.rectangle"
-        case .routines:
-            "calendar"
-        case .sessions:
-            "chart.bar.xaxis"
-        }
-    }
-}
-
 #Preview {
     ContentView()
         .modelContainer(
@@ -130,10 +66,7 @@ private enum AppTab: Hashable {
                 Exercise.self,
                 WorkoutTemplate.self,
                 TemplateExercise.self,
-                Routine.self,
-                RoutineDay.self,
-                WorkoutSession.self,
-                SetEntry.self
+                TemplateExerciseSet.self
             ],
             inMemory: true
         )

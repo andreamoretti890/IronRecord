@@ -12,7 +12,6 @@ enum SeedData {
     static func seedIfNeeded(in context: ModelContext) throws {
         var exerciseByName = try fetchExerciseMap(from: context)
         var templateByName = try fetchTemplateMap(from: context)
-        var routineByName = try fetchRoutineMap(from: context)
 
         for exerciseSeed in starterExercises where exerciseByName[exerciseSeed.name] == nil {
             let exercise = Exercise(
@@ -52,41 +51,6 @@ enum SeedData {
             )
         }
 
-        var hasAnyActiveRoutine = routineByName.values.contains(where: \.isActive)
-
-        for routineSeed in starterRoutines {
-            let routine: Routine
-
-            if let existingRoutine = routineByName[routineSeed.name] {
-                routine = existingRoutine
-
-                if routine.notes.isEmpty {
-                    routine.notes = routineSeed.notes
-                }
-            } else {
-                let shouldBeActive = routineSeed.isActive && !hasAnyActiveRoutine
-                let newRoutine = Routine(
-                    name: routineSeed.name,
-                    notes: routineSeed.notes,
-                    isActive: shouldBeActive
-                )
-                context.insert(newRoutine)
-                routineByName[newRoutine.name] = newRoutine
-                routine = newRoutine
-
-                if shouldBeActive {
-                    hasAnyActiveRoutine = true
-                }
-            }
-
-            seedRoutineDaysIfMissing(
-                routineSeed.days,
-                for: routine,
-                using: templateByName,
-                context: context
-            )
-        }
-
         if context.hasChanges {
             try context.save()
         }
@@ -102,11 +66,6 @@ private extension SeedData {
     static func fetchTemplateMap(from context: ModelContext) throws -> [String: WorkoutTemplate] {
         let templates = try context.fetch(FetchDescriptor<WorkoutTemplate>())
         return Dictionary(uniqueKeysWithValues: templates.map { ($0.name, $0) })
-    }
-
-    static func fetchRoutineMap(from context: ModelContext) throws -> [String: Routine] {
-        let routines = try context.fetch(FetchDescriptor<Routine>())
-        return Dictionary(uniqueKeysWithValues: routines.map { ($0.name, $0) })
     }
 
     static func seedTemplateExercisesIfMissing(
@@ -152,61 +111,8 @@ private extension SeedData {
         }
     }
 
-    static func seedRoutineDaysIfMissing(
-        _ routineDaySeeds: [RoutineDaySeed],
-        for routine: Routine,
-        using templateByName: [String: WorkoutTemplate],
-        context: ModelContext
-    ) {
-        var existingKeys: Set<String> = []
-
-        for existingDay in routine.days {
-            guard let templateName = existingDay.template?.name else {
-                continue
-            }
-
-            existingKeys.insert(
-                routineDayKey(
-                    weekday: existingDay.weekday,
-                    position: existingDay.position,
-                    templateName: templateName
-                )
-            )
-        }
-
-        for daySeed in routineDaySeeds {
-            let key = routineDayKey(
-                weekday: daySeed.weekday,
-                position: daySeed.position,
-                templateName: daySeed.templateName
-            )
-
-            guard !existingKeys.contains(key) else {
-                continue
-            }
-
-            guard let template = templateByName[daySeed.templateName] else {
-                continue
-            }
-
-            let routineDay = RoutineDay(
-                weekday: daySeed.weekday,
-                position: daySeed.position,
-                template: template
-            )
-
-            routine.days.append(routineDay)
-            context.insert(routineDay)
-            existingKeys.insert(key)
-        }
-    }
-
     static func templateExerciseKey(position: Int, exerciseName: String) -> String {
         "\(position)|\(exerciseName)"
-    }
-
-    static func routineDayKey(weekday: Int, position: Int, templateName: String) -> String {
-        "\(weekday)|\(position)|\(templateName)"
     }
 
     struct ExerciseSeed {
@@ -227,19 +133,6 @@ private extension SeedData {
         let name: String
         let notes: String
         let exercises: [TemplateExerciseSeed]
-    }
-
-    struct RoutineDaySeed {
-        let weekday: Int
-        let position: Int
-        let templateName: String
-    }
-
-    struct RoutineSeed {
-        let name: String
-        let notes: String
-        let isActive: Bool
-        let days: [RoutineDaySeed]
     }
 
     static let starterExercises: [ExerciseSeed] = [
@@ -325,28 +218,6 @@ private extension SeedData {
                 TemplateExerciseSeed(exerciseName: "Leg Press", targetSets: 3, targetReps: "10-15", restSeconds: 120, notes: ""),
                 TemplateExerciseSeed(exerciseName: "Leg Extension", targetSets: 2, targetReps: "12-15", restSeconds: 90, notes: ""),
                 TemplateExerciseSeed(exerciseName: "Standing Calf Raise", targetSets: 4, targetReps: "12-20", restSeconds: 75, notes: "")
-            ]
-        )
-    ]
-
-    static let starterRoutines: [RoutineSeed] = [
-        RoutineSeed(
-            name: "Push / Pull / Legs",
-            notes: "Classic 3-day split. Repeat weekly.",
-            isActive: true,
-            days: [
-                RoutineDaySeed(weekday: 2, position: 1, templateName: "Push A"),
-                RoutineDaySeed(weekday: 4, position: 2, templateName: "Pull A"),
-                RoutineDaySeed(weekday: 6, position: 3, templateName: "Legs A")
-            ]
-        ),
-        RoutineSeed(
-            name: "Upper / Lower",
-            notes: "2-day split for flexible weeks.",
-            isActive: false,
-            days: [
-                RoutineDaySeed(weekday: 3, position: 1, templateName: "Upper A"),
-                RoutineDaySeed(weekday: 5, position: 2, templateName: "Lower A")
             ]
         )
     ]

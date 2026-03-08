@@ -19,9 +19,6 @@ final class Exercise {
     @Relationship(inverse: \TemplateExercise.exercise)
     var templateEntries: [TemplateExercise]
 
-    @Relationship(inverse: \SetEntry.exercise)
-    var setEntries: [SetEntry]
-
     init(
         name: String,
         category: String,
@@ -35,6 +32,5 @@ final class Exercise {
         self.notes = notes
         self.createdAt = createdAt
         templateEntries = []
-        setEntries = []
     }
 }

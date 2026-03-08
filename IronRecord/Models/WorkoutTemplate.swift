@@ -17,9 +17,6 @@ final class WorkoutTemplate {
     @Relationship(deleteRule: .cascade, inverse: \TemplateExercise.template)
     var exercises: [TemplateExercise]
 
-    @Relationship(inverse: \RoutineDay.template)
-    var routineDays: [RoutineDay]
-
     init(
         name: String,
         notes: String = "",
@@ -29,7 +26,6 @@ final class WorkoutTemplate {
         self.notes = notes
         self.createdAt = createdAt
         exercises = []
-        routineDays = []
     }
 }
 
@@ -43,6 +39,9 @@ final class TemplateExercise {
 
     var template: WorkoutTemplate?
     var exercise: Exercise?
+
+    @Relationship(deleteRule: .cascade, inverse: \TemplateExerciseSet.templateExercise)
+    var prescribedSets: [TemplateExerciseSet]
 
     init(
         position: Int,
@@ -60,5 +59,73 @@ final class TemplateExercise {
         self.notes = notes
         self.template = template
         self.exercise = exercise
+        prescribedSets = []
+    }
+}
+
+@Model
+final class TemplateExerciseSet {
+    var position: Int
+    var prescribedWeight: Double?
+    var targetReps: Int?
+    var targetRepMin: Int?
+    var targetRepMax: Int?
+
+    var templateExercise: TemplateExercise?
+
+    init(
+        position: Int,
+        prescribedWeight: Double? = nil,
+        targetReps: Int? = nil,
+        targetRepMin: Int? = nil,
+        targetRepMax: Int? = nil,
+        templateExercise: TemplateExercise? = nil
+    ) {
+        self.position = position
+        self.prescribedWeight = prescribedWeight
+        self.targetReps = targetReps
+        self.targetRepMin = targetRepMin
+        self.targetRepMax = targetRepMax
+        self.templateExercise = templateExercise
+    }
+}
+
+extension TemplateExercise {
+    var sortedPrescribedSets: [TemplateExerciseSet] {
+        prescribedSets.sorted { left, right in
+            left.position < right.position
+        }
+    }
+
+    var displayRepTargetText: String {
+        let setTargets = sortedPrescribedSets
+            .map(\.displayRepText)
+            .filter { !$0.isEmpty }
+
+        guard !setTargets.isEmpty else {
+            let trimmedTarget = targetReps.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmedTarget.isEmpty ? "No rep target" : trimmedTarget
+        }
+
+        let uniqueTargets = Set(setTargets)
+        if uniqueTargets.count == 1, let onlyTarget = uniqueTargets.first {
+            return onlyTarget
+        }
+
+        return "Variable"
+    }
+}
+
+extension TemplateExerciseSet {
+    var displayRepText: String {
+        if let targetRepMin, let targetRepMax {
+            return "\(targetRepMin)-\(targetRepMax)"
+        }
+
+        if let targetReps {
+            return "\(targetReps)"
+        }
+
+        return ""
     }
 }

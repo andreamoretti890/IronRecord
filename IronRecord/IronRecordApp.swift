@@ -19,10 +19,7 @@ struct IronRecordApp: App {
                 Exercise.self,
                 WorkoutTemplate.self,
                 TemplateExercise.self,
-                Routine.self,
-                RoutineDay.self,
-                WorkoutSession.self,
-                SetEntry.self
+                TemplateExerciseSet.self
             ]
         )
     }
