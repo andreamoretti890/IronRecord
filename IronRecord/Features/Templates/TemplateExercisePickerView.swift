@@ -78,14 +78,23 @@ struct ExercisePickerView: View {
                 }
             }
 
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Add (\(selectedExerciseIDs.count))") {
-                    onAddSelected(selectedItemsOrderedByCatalog)
-                    dismiss()
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Create") {
+                    // Placeholder for custom exercise creation flow.
                 }
-                .disabled(selectedExerciseIDs.isEmpty)
             }
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !exercises.isEmpty && !selectedExerciseIDs.isEmpty {
+                selectionDock
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .padding(.bottom, 8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.snappy(duration: 0.25), value: selectedExerciseIDs.count)
+        .animation(.snappy(duration: 0.25), value: exercises.isEmpty)
         .sheet(item: $activeFilterPicker) { picker in
             NavigationStack {
                 FilterSelectionSheet(
@@ -223,5 +232,38 @@ struct ExercisePickerView: View {
 
     private var hasActiveFilters: Bool {
         selectedBodyPart != nil || selectedEquipment != nil || selectedMode != nil
+    }
+
+    private var selectionDock: some View {
+        Button {
+            addSelectedAndDismiss()
+        } label: {
+            Text(addButtonTitle)
+                .frame(maxWidth: .infinity)
+                .contentTransition(.numericText())
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .disabled(selectedExerciseIDs.isEmpty)
+        .accessibilityLabel("Add selected exercises")
+        .accessibilityValue("\(selectedExerciseIDs.count) selected")
+        .buttonBorderShape(.capsule)
+    }
+
+    private var addButtonTitle: String {
+        let count = selectedExerciseIDs.count
+        switch count {
+        case 0:
+            return "Add exercises"
+        case 1:
+            return "Add 1 exercise"
+        default:
+            return "Add \(count) exercises"
+        }
+    }
+
+    private func addSelectedAndDismiss() {
+        onAddSelected(selectedItemsOrderedByCatalog)
+        dismiss()
     }
 }
