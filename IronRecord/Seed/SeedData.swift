@@ -12,16 +12,30 @@ enum SeedData {
     static func seedIfNeeded(in context: ModelContext) throws {
         var exerciseByName = try fetchExerciseMap(from: context)
         var templateByName = try fetchTemplateMap(from: context)
+        let exerciseSeedByName = Dictionary(
+            uniqueKeysWithValues: starterExercises.map { ($0.name, $0) }
+        )
 
         for exerciseSeed in starterExercises where exerciseByName[exerciseSeed.name] == nil {
             let exercise = Exercise(
                 name: exerciseSeed.name,
                 category: exerciseSeed.category,
+                bodyPart: exerciseSeed.bodyPart,
                 equipment: exerciseSeed.equipment
             )
 
             context.insert(exercise)
             exerciseByName[exercise.name] = exercise
+        }
+
+        for (name, exercise) in exerciseByName {
+            if let seed = exerciseSeedByName[name] {
+                if exercise.bodyPart.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    exercise.bodyPart = seed.bodyPart
+                }
+            } else if exercise.bodyPart.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                exercise.bodyPart = "Others"
+            }
         }
 
         for templateSeed in starterTemplates {
@@ -118,6 +132,7 @@ private extension SeedData {
     struct ExerciseSeed {
         let name: String
         let category: String
+        let bodyPart: String
         let equipment: String
     }
 
@@ -136,31 +151,31 @@ private extension SeedData {
     }
 
     static let starterExercises: [ExerciseSeed] = [
-        ExerciseSeed(name: "Back Squat", category: "Legs", equipment: "Barbell"),
-        ExerciseSeed(name: "Barbell Bench Press", category: "Chest", equipment: "Barbell"),
-        ExerciseSeed(name: "Barbell Overhead Press", category: "Shoulders", equipment: "Barbell"),
-        ExerciseSeed(name: "Barbell Row", category: "Back", equipment: "Barbell"),
-        ExerciseSeed(name: "Cable Lateral Raise", category: "Shoulders", equipment: "Cable"),
-        ExerciseSeed(name: "Chest Supported Row", category: "Back", equipment: "Machine"),
-        ExerciseSeed(name: "Conventional Deadlift", category: "Back", equipment: "Barbell"),
-        ExerciseSeed(name: "Dumbbell Biceps Curl", category: "Arms", equipment: "Dumbbell"),
-        ExerciseSeed(name: "Face Pull", category: "Upper Back", equipment: "Cable"),
-        ExerciseSeed(name: "Front Squat", category: "Legs", equipment: "Barbell"),
-        ExerciseSeed(name: "Hack Squat", category: "Legs", equipment: "Machine"),
-        ExerciseSeed(name: "Hammer Curl", category: "Arms", equipment: "Dumbbell"),
-        ExerciseSeed(name: "Hip Thrust", category: "Glutes", equipment: "Barbell"),
-        ExerciseSeed(name: "Incline Dumbbell Press", category: "Chest", equipment: "Dumbbell"),
-        ExerciseSeed(name: "Lat Pulldown", category: "Back", equipment: "Machine"),
-        ExerciseSeed(name: "Leg Extension", category: "Legs", equipment: "Machine"),
-        ExerciseSeed(name: "Leg Press", category: "Legs", equipment: "Machine"),
-        ExerciseSeed(name: "Lying Leg Curl", category: "Legs", equipment: "Machine"),
-        ExerciseSeed(name: "Machine Chest Press", category: "Chest", equipment: "Machine"),
-        ExerciseSeed(name: "Pull-Up", category: "Back", equipment: "Bodyweight"),
-        ExerciseSeed(name: "Romanian Deadlift", category: "Legs", equipment: "Barbell"),
-        ExerciseSeed(name: "Seated Cable Row", category: "Back", equipment: "Cable"),
-        ExerciseSeed(name: "Seated Dumbbell Shoulder Press", category: "Shoulders", equipment: "Dumbbell"),
-        ExerciseSeed(name: "Standing Calf Raise", category: "Calves", equipment: "Machine"),
-        ExerciseSeed(name: "Triceps Rope Pushdown", category: "Arms", equipment: "Cable")
+        ExerciseSeed(name: "Back Squat", category: "Legs", bodyPart: "Quadriceps", equipment: "Barbell"),
+        ExerciseSeed(name: "Barbell Bench Press", category: "Chest", bodyPart: "Chest", equipment: "Barbell"),
+        ExerciseSeed(name: "Barbell Overhead Press", category: "Shoulders", bodyPart: "Shoulders", equipment: "Barbell"),
+        ExerciseSeed(name: "Barbell Row", category: "Back", bodyPart: "Back", equipment: "Barbell"),
+        ExerciseSeed(name: "Cable Lateral Raise", category: "Shoulders", bodyPart: "Shoulders", equipment: "Cable"),
+        ExerciseSeed(name: "Chest Supported Row", category: "Back", bodyPart: "Back", equipment: "Machine"),
+        ExerciseSeed(name: "Conventional Deadlift", category: "Back", bodyPart: "Back", equipment: "Barbell"),
+        ExerciseSeed(name: "Dumbbell Biceps Curl", category: "Arms", bodyPart: "Biceps", equipment: "Dumbbell"),
+        ExerciseSeed(name: "Face Pull", category: "Upper Back", bodyPart: "Traps", equipment: "Cable"),
+        ExerciseSeed(name: "Front Squat", category: "Legs", bodyPart: "Quadriceps", equipment: "Barbell"),
+        ExerciseSeed(name: "Hack Squat", category: "Legs", bodyPart: "Quadriceps", equipment: "Machine"),
+        ExerciseSeed(name: "Hammer Curl", category: "Arms", bodyPart: "Forearms", equipment: "Dumbbell"),
+        ExerciseSeed(name: "Hip Thrust", category: "Glutes", bodyPart: "Glutes", equipment: "Barbell"),
+        ExerciseSeed(name: "Incline Dumbbell Press", category: "Chest", bodyPart: "Chest", equipment: "Dumbbell"),
+        ExerciseSeed(name: "Lat Pulldown", category: "Back", bodyPart: "Back", equipment: "Machine"),
+        ExerciseSeed(name: "Leg Extension", category: "Legs", bodyPart: "Quadriceps", equipment: "Machine"),
+        ExerciseSeed(name: "Leg Press", category: "Legs", bodyPart: "Quadriceps", equipment: "Machine"),
+        ExerciseSeed(name: "Lying Leg Curl", category: "Legs", bodyPart: "Hamstrings", equipment: "Machine"),
+        ExerciseSeed(name: "Machine Chest Press", category: "Chest", bodyPart: "Chest", equipment: "Machine"),
+        ExerciseSeed(name: "Pull-Up", category: "Back", bodyPart: "Back", equipment: "Bodyweight"),
+        ExerciseSeed(name: "Romanian Deadlift", category: "Legs", bodyPart: "Hamstrings", equipment: "Barbell"),
+        ExerciseSeed(name: "Seated Cable Row", category: "Back", bodyPart: "Back", equipment: "Cable"),
+        ExerciseSeed(name: "Seated Dumbbell Shoulder Press", category: "Shoulders", bodyPart: "Shoulders", equipment: "Dumbbell"),
+        ExerciseSeed(name: "Standing Calf Raise", category: "Calves", bodyPart: "Calves", equipment: "Machine"),
+        ExerciseSeed(name: "Triceps Rope Pushdown", category: "Arms", bodyPart: "Triceps", equipment: "Cable")
     ]
 
     static let starterTemplates: [TemplateSeed] = [
