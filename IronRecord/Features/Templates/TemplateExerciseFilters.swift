@@ -192,6 +192,15 @@ enum ExerciseBodyPart: String, CaseIterable, Identifiable {
         return .others
     }
 
+    static func fromExercise(name: String, storedBodyPart: String) -> ExerciseBodyPart {
+        let normalizedName = normalized(name)
+        if let exactMatch = exactExerciseNameMap[normalizedName] {
+            return exactMatch
+        }
+
+        return fromStoredValue(storedBodyPart)
+    }
+
     private static let exactStoredValueMap: [String: ExerciseBodyPart] = [
         "core": .core,
         "chest": .chest,
@@ -216,6 +225,34 @@ enum ExerciseBodyPart: String, CaseIterable, Identifiable {
         // forcing broad labels when we can infer more specific parts from name.
         "arms": .others,
         "legs": .others
+    ]
+
+    private static let exactExerciseNameMap: [String: ExerciseBodyPart] = [
+        "back squat": .quadriceps,
+        "barbell bench press": .chest,
+        "barbell overhead press": .shoulders,
+        "barbell row": .back,
+        "cable lateral raise": .shoulders,
+        "chest supported row": .back,
+        "conventional deadlift": .back,
+        "dumbbell biceps curl": .biceps,
+        "face pull": .traps,
+        "front squat": .quadriceps,
+        "hack squat": .quadriceps,
+        "hammer curl": .forearms,
+        "hip thrust": .glutes,
+        "incline dumbbell press": .chest,
+        "lat pulldown": .back,
+        "leg extension": .quadriceps,
+        "leg press": .quadriceps,
+        "lying leg curl": .hamstrings,
+        "machine chest press": .chest,
+        "pull up": .back,
+        "romanian deadlift": .hamstrings,
+        "seated cable row": .back,
+        "seated dumbbell shoulder press": .shoulders,
+        "standing calf raise": .calves,
+        "triceps rope pushdown": .triceps
     ]
 }
 

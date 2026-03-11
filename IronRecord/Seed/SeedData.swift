@@ -30,9 +30,9 @@ enum SeedData {
 
         for (name, exercise) in exerciseByName {
             if let seed = exerciseSeedByName[name] {
-                if exercise.bodyPart.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    exercise.bodyPart = seed.bodyPart
-                }
+                // Keep starter exercises pinned to the canonical seed taxonomy.
+                exercise.bodyPart = seed.bodyPart
+                exercise.category = seed.category
             } else if exercise.bodyPart.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 exercise.bodyPart = "Others"
             }

@@ -6,50 +6,72 @@ struct AddTemplateView: View {
 
     @Query(sort: \Exercise.name) private var availableExercises: [Exercise]
 
+    private let existingTemplate: TemplateRowItem?
+    private let isEditingMode: Bool
     @State private var title = ""
-    @State private var exercises: [ExercisePickerItem] = []
+    @State private var exercises: [TemplateExerciseDraft] = []
+    @State private var activeRestPicker: RestPickerContext?
+    @State private var activeReplacePicker: ReplaceExerciseContext?
+    @State private var pendingRestSeconds = RestPickerContext.offValue
+    @State private var isShowingDiscardAlert = false
+    @FocusState private var focusedField: FocusField?
 
     var onSave: (TemplateRowItem) -> Void
 
+    init(
+        template: TemplateRowItem? = nil,
+        savesAsNewTemplate: Bool = false,
+        onSave: @escaping (TemplateRowItem) -> Void
+    ) {
+        self.existingTemplate = savesAsNewTemplate ? nil : template
+        self.isEditingMode = template != nil
+        self.onSave = onSave
+        _title = State(initialValue: template?.title ?? "")
+        _exercises = State(
+            initialValue: template?.exercises.map(TemplateExerciseDraft.init(templateExercise:)) ?? []
+        )
+    }
+
     var body: some View {
-        Form {
-            Section("Title") {
-                TextField("Template title", text: $title)
-                    .textInputAutocapitalization(.words)
-                    .autocorrectionDisabled()
-            }
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 18) {
+                titleCard
 
-            Section("Exercises") {
                 if exercises.isEmpty {
-                    Text("No exercises added yet.")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(exercises) { exercise in
-                        Text(exercise.name)
-                    }
-                    .onDelete(perform: deleteExercises)
+                    emptyExercisesCard
                 }
 
-                NavigationLink {
-                    ExercisePickerView(
-                        exercises: selectableExercises,
-                        initiallySelectedIDs: Set(exercises.map(\.id)),
-                        onAddSelected: { selectedExerciseItems in
-                            addExercises(selectedExerciseItems)
+                ForEach(Array(exercises.enumerated()), id: \.element.id) { index, exercise in
+                    VStack(spacing: 0) {
+                        exerciseCard(exerciseIndex: index, exercise: exercise)
+
+                        if index < exercises.count - 1 {
+                            Divider()
+                                .padding(.top, 14)
+                                .padding(.leading, 16)
                         }
-                    )
-                } label: {
-                    Label("Add Exercises", systemImage: "plus.circle")
+                    }
                 }
+
+                addExerciseLink
             }
+            .padding(.vertical, 12)
         }
-        .navigationTitle("Add Template")
+        .scrollDismissesKeyboard(.interactively)
+        .background {
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    dismissKeyboard()
+                }
+        }
+        .navigationTitle(isEditingMode ? "Edit Template" : "Add Template")
         .navigationBarTitleDisplayMode(.inline)
         .interactiveDismissDisabled()
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") {
-                    dismiss()
+                    cancelTapped()
                 }
             }
 
@@ -59,6 +81,300 @@ struct AddTemplateView: View {
                 }
                 .disabled(!canSave)
             }
+
+            ToolbarItemGroup(placement: .keyboard) {
+                if focusedField != nil {
+                    Spacer()
+                    Button {
+                        dismissKeyboard()
+                    } label: {
+                        Image(systemName: "keyboard.chevron.compact.down")
+                    }
+                    .accessibilityLabel("Hide keyboard")
+                }
+            }
+        }
+        .sheet(item: $activeRestPicker) { context in
+            restTimerSheet(for: context.id)
+                .presentationDetents([.height(280)])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $activeReplacePicker) { context in
+            NavigationStack {
+                ExercisePickerView(
+                    exercises: selectableExercises,
+                    initiallySelectedIDs: replacementSelectionIDs(for: context.id),
+                    selectionMode: .single,
+                    actionTitle: "Replace exercise",
+                    actionSystemImage: "arrow.triangle.2.circlepath",
+                    onAddSelected: { selectedExerciseItems in
+                        guard let selectedExercise = selectedExerciseItems.first else {
+                            return
+                        }
+                        replaceExercise(context.id, with: selectedExercise)
+                    }
+                )
+            }
+        }
+        .alert("Discard Template?", isPresented: $isShowingDiscardAlert) {
+            Button("Keep Editing", role: .cancel) { }
+            Button("Discard", role: .destructive) {
+                dismiss()
+            }
+        } message: {
+            Text("You have unsaved changes. Are you sure you want to discard this template?")
+        }
+    }
+
+    private var titleCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Template Title")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            TextField("Template title", text: $title)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
+                .font(.title3.weight(.semibold))
+                .focused($focusedField, equals: .title)
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var emptyExercisesCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("No exercises yet")
+                .font(.headline)
+            Text("Tap Add exercise to start building this template.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var addExerciseLink: some View {
+        NavigationLink {
+            ExercisePickerView(
+                exercises: selectableExercises,
+                initiallySelectedIDs: Set(exercises.map(\.catalogExerciseID)),
+                onAddSelected: { selectedExerciseItems in
+                    addExercises(selectedExerciseItems)
+                }
+            )
+        } label: {
+            Label("Add exercise", systemImage: "plus")
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .foregroundStyle(.white)
+                .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 16))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+    }
+
+    private func exerciseCard(exerciseIndex: Int, exercise: TemplateExerciseDraft) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 12) {
+                initialsBadge(for: exercise.name)
+
+                Text(exercise.name)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.tint)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Menu {
+                    Button(exercise.notes.isEmpty && !exercise.notesVisible ? "Add Notes" : "Edit Notes", systemImage: "note.text") {
+                        exercises[exerciseIndex].notesVisible = true
+                    }
+
+                    Button("Replace", systemImage: "arrow.triangle.2.circlepath") {
+                        activeReplacePicker = ReplaceExerciseContext(id: exercise.id)
+                    }
+                    Button("Reorder", systemImage: "line.3.horizontal") { }
+                    Button("Add to Superset", systemImage: "square.stack.3d.up") { }
+
+                    Divider()
+
+                    Button("Delete Exercise", systemImage: "trash", role: .destructive) {
+                        deleteExercise(exercise.id)
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.headline)
+                        .padding(10)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+
+            if exercise.notesVisible || !exercise.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                TextField("Add routine notes here", text: $exercises[exerciseIndex].notes, axis: .vertical)
+                    .lineLimit(nil)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+                    .focused($focusedField, equals: .notes(exercise.id))
+            }
+
+            Button {
+                presentRestPicker(for: exercise.id)
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "timer")
+                    Text("Rest Timer: \(restTimerLabel(exercise.restSeconds))")
+                    Spacer()
+                }
+                .font(.headline)
+                .foregroundStyle(.tint)
+            }
+            .buttonStyle(.plain)
+
+            setTableHeader
+
+            List {
+                ForEach(Array(exercises[exerciseIndex].sets.enumerated()), id: \.element.id) { setIndex, set in
+                    Group {
+                        if exercises[exerciseIndex].sets.count > 1 {
+                            setRow(
+                                exerciseIndex: exerciseIndex,
+                                setIndex: setIndex,
+                                exerciseID: exercise.id,
+                                setID: set.id
+                            )
+                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                    Button("Delete", systemImage: "trash", role: .destructive) {
+                                        deleteSet(exerciseID: exercise.id, setID: set.id)
+                                    }
+                                }
+                        } else {
+                            setRow(
+                                exerciseIndex: exerciseIndex,
+                                setIndex: setIndex,
+                                exerciseID: exercise.id,
+                                setID: set.id
+                            )
+                        }
+                    }
+                    .listRowInsets(.init(top: 4, leading: 0, bottom: 4, trailing: 0))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                }
+            }
+            .listStyle(.plain)
+            .scrollDisabled(true)
+            .scrollContentBackground(.hidden)
+            .scrollDismissesKeyboard(.interactively)
+            .frame(height: listHeight(forSetCount: exercises[exerciseIndex].sets.count))
+            .animation(.snappy(duration: 0.2, extraBounce: 0), value: exercises[exerciseIndex].sets.count)
+
+            Button {
+                withAnimation {
+                    addSet(to: exercise.id)
+                }
+            } label: {
+                Label("Add Set", systemImage: "plus")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .foregroundStyle(.primary)
+                    .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
+                    .contentShape(RoundedRectangle(cornerRadius: 16))
+            }
+            .buttonStyle(.plain)
+            .animation(nil, value: exercises[exerciseIndex].sets.count)
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var setTableHeader: some View {
+        HStack(spacing: 12) {
+            Text("SET")
+                .frame(width: 44, alignment: .center)
+
+            Text("KG")
+                .frame(maxWidth: .infinity)
+
+            Text("REPS")
+                .frame(maxWidth: .infinity)
+        }
+        .font(.headline)
+        .foregroundStyle(.secondary)
+    }
+
+    private func setRow(
+        exerciseIndex: Int,
+        setIndex: Int,
+        exerciseID: UUID,
+        setID: UUID
+    ) -> some View {
+        HStack(spacing: 12) {
+            Text("\(setIndex + 1)")
+                .font(.title3.weight(.semibold))
+                .frame(width: 44, alignment: .center)
+
+            TextField("-", text: $exercises[exerciseIndex].sets[setIndex].weightText)
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.center)
+                .padding(.vertical, 10)
+                .padding(.horizontal, 8)
+                .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                .focused($focusedField, equals: .weight(exerciseID, setID))
+
+            TextField("-", text: $exercises[exerciseIndex].sets[setIndex].repsText)
+                .keyboardType(.numberPad)
+                .multilineTextAlignment(.center)
+                .padding(.vertical, 10)
+                .padding(.horizontal, 8)
+                .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                .focused($focusedField, equals: .reps(exerciseID, setID))
+        }
+    }
+
+    private func initialsBadge(for exerciseName: String) -> some View {
+        let initials = initials(from: exerciseName)
+
+        return Circle()
+            .fill(Color(.tertiarySystemBackground))
+            .frame(width: 52, height: 52)
+            .overlay {
+                Text(initials)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+    }
+
+    private func restTimerSheet(for exerciseID: UUID) -> some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                Picker("Rest", selection: $pendingRestSeconds) {
+                    Text("Off").tag(RestPickerContext.offValue)
+                    ForEach(RestPickerContext.values, id: \.self) { seconds in
+                        Text(restTimerLabel(seconds))
+                            .tag(seconds)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+            }
+            .navigationTitle("Rest Timer")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        activeRestPicker = nil
+                    }
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        applyRestSelection(for: exerciseID)
+                    }
+                }
+            }
         }
     }
 
@@ -67,12 +383,20 @@ struct AddTemplateView: View {
         return !trimmedTitle.isEmpty && !exercises.isEmpty
     }
 
+    private var isDraftEmpty: Bool {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedTitle.isEmpty && exercises.isEmpty
+    }
+
     private var selectableExercises: [ExercisePickerItem] {
         let modelExercises = availableExercises.map { exercise in
             ExercisePickerItem(
-                id: String(describing: exercise.persistentModelID),
+                id: exercise.name,
                 name: exercise.name,
-                bodyPart: ExerciseBodyPart.fromStoredValue(exercise.bodyPart),
+                bodyPart: ExerciseBodyPart.fromExercise(
+                    name: exercise.name,
+                    storedBodyPart: exercise.bodyPart
+                ),
                 equipment: ExerciseEquipment.infer(
                     equipment: exercise.equipment,
                     exerciseName: exercise.name
@@ -85,12 +409,15 @@ struct AddTemplateView: View {
         }
 
         guard !modelExercises.isEmpty else {
-            let fallbackNames = Set(TemplateRowItem.mock.flatMap(\.exercises)).sorted()
-            return fallbackNames.enumerated().map { index, name in
+            let fallbackNames = Set(TemplateRowItem.mock.flatMap { $0.exercises.map(\.name) }).sorted()
+            return fallbackNames.map { name in
                 ExercisePickerItem(
-                    id: "fallback-\(index)-\(name.lowercased().replacingOccurrences(of: " ", with: "-"))",
+                    id: name,
                     name: name,
-                    bodyPart: .others,
+                    bodyPart: ExerciseBodyPart.fromExercise(
+                        name: name,
+                        storedBodyPart: "Others"
+                    ),
                     equipment: ExerciseEquipment.infer(
                         equipment: "",
                         exerciseName: name
@@ -107,14 +434,112 @@ struct AddTemplateView: View {
     }
 
     private func addExercises(_ selectedItems: [ExercisePickerItem]) {
-        var existingIDs = Set(exercises.map(\.id))
+        var existingIDs = Set(exercises.map(\.catalogExerciseID))
+
         for item in selectedItems where existingIDs.insert(item.id).inserted {
-            exercises.append(item)
+            exercises.append(
+                TemplateExerciseDraft(
+                    catalogExerciseID: item.id,
+                    name: item.name,
+                    notes: "",
+                    notesVisible: false,
+                    restSeconds: nil,
+                    sets: [.empty]
+                )
+            )
         }
     }
 
-    private func deleteExercises(at offsets: IndexSet) {
-        exercises.remove(atOffsets: offsets)
+    private func deleteExercise(_ exerciseID: UUID) {
+        exercises.removeAll { $0.id == exerciseID }
+    }
+
+    private func replacementSelectionIDs(for exerciseID: UUID) -> Set<String> {
+        _ = exerciseID
+        return []
+    }
+
+    private func replaceExercise(_ targetExerciseID: UUID, with exercise: ExercisePickerItem) {
+        guard let index = exercises.firstIndex(where: { $0.id == targetExerciseID }) else {
+            return
+        }
+
+        exercises[index].catalogExerciseID = exercise.id
+        exercises[index].name = exercise.name
+    }
+
+    private func addSet(to exerciseID: UUID) {
+        guard let index = exercises.firstIndex(where: { $0.id == exerciseID }) else {
+            return
+        }
+
+        exercises[index].sets.append(.empty)
+    }
+
+    private func deleteSet(exerciseID: UUID, setID: UUID) {
+        guard let exerciseIndex = exercises.firstIndex(where: { $0.id == exerciseID }),
+              exercises[exerciseIndex].sets.count > 1,
+              let setIndex = exercises[exerciseIndex].sets.firstIndex(where: { $0.id == setID })
+        else {
+            return
+        }
+
+        exercises[exerciseIndex].sets.remove(at: setIndex)
+    }
+
+    private func listHeight(forSetCount count: Int) -> CGFloat {
+        max(52, CGFloat(count) * 56)
+    }
+
+    private func presentRestPicker(for exerciseID: UUID) {
+        guard let index = exercises.firstIndex(where: { $0.id == exerciseID }) else {
+            return
+        }
+
+        pendingRestSeconds = exercises[index].restSeconds ?? RestPickerContext.offValue
+        activeRestPicker = RestPickerContext(id: exerciseID)
+    }
+
+    private func applyRestSelection(for exerciseID: UUID) {
+        guard let index = exercises.firstIndex(where: { $0.id == exerciseID }) else {
+            activeRestPicker = nil
+            return
+        }
+
+        exercises[index].restSeconds = pendingRestSeconds == RestPickerContext.offValue
+            ? nil
+            : pendingRestSeconds
+        activeRestPicker = nil
+    }
+
+    private func restTimerLabel(_ seconds: Int?) -> String {
+        guard let seconds else { return "Off" }
+
+        if seconds < 60 {
+            return "\(seconds)s"
+        }
+
+        let minutes = seconds / 60
+        let remainingSeconds = seconds % 60
+
+        return "\(minutes)m \(remainingSeconds)s"
+    }
+
+    private func initials(from name: String) -> String {
+        let words = name
+            .split(whereSeparator: { $0.isWhitespace || $0.isNewline })
+            .prefix(2)
+
+        let joined = words
+            .compactMap { $0.first }
+            .map { String($0) }
+            .joined()
+
+        if joined.isEmpty {
+            return "EX"
+        }
+
+        return joined.uppercased()
     }
 
     private func saveRoutine() {
@@ -123,7 +548,151 @@ struct AddTemplateView: View {
             return
         }
 
-        onSave(TemplateRowItem(title: trimmedTitle, exercises: exercises.map(\.name)))
+        onSave(
+            TemplateRowItem(
+                id: existingTemplate?.id ?? UUID(),
+                title: trimmedTitle,
+                exercises: exercises.map { exercise in
+                    TemplateExerciseRowItem(
+                        name: exercise.name,
+                        notes: exercise.notes,
+                        restSeconds: exercise.restSeconds,
+                        sets: exercise.sets.map { set in
+                            TemplateSetRowItem(
+                                weightText: set.weightText,
+                                repsText: set.repsText
+                            )
+                        }
+                    )
+                }
+            )
+        )
         dismiss()
     }
+
+    private func cancelTapped() {
+        if isDraftEmpty {
+            dismiss()
+        } else {
+            isShowingDiscardAlert = true
+        }
+    }
+
+    private func dismissKeyboard() {
+        focusedField = nil
+    }
+}
+
+private enum FocusField: Hashable {
+    case title
+    case notes(UUID)
+    case weight(UUID, UUID)
+    case reps(UUID, UUID)
+}
+
+private struct TemplateExerciseDraft: Identifiable {
+    let id: UUID
+    var catalogExerciseID: String
+    var name: String
+    var notes: String
+    var notesVisible: Bool
+    var restSeconds: Int?
+    var sets: [TemplateSetDraft]
+
+    init(
+        id: UUID = UUID(),
+        catalogExerciseID: String,
+        name: String,
+        notes: String,
+        notesVisible: Bool,
+        restSeconds: Int?,
+        sets: [TemplateSetDraft]
+    ) {
+        self.id = id
+        self.catalogExerciseID = catalogExerciseID
+        self.name = name
+        self.notes = notes
+        self.notesVisible = notesVisible
+        self.restSeconds = restSeconds
+        self.sets = sets
+    }
+
+    init(name: String) {
+        self.init(
+            catalogExerciseID: name,
+            name: name,
+            notes: "",
+            notesVisible: false,
+            restSeconds: nil,
+            sets: [.empty]
+        )
+    }
+
+    init(templateExercise: TemplateExerciseRowItem) {
+        self.init(
+            id: templateExercise.id,
+            catalogExerciseID: templateExercise.name,
+            name: templateExercise.name,
+            notes: templateExercise.notes,
+            notesVisible: !templateExercise.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            restSeconds: templateExercise.restSeconds,
+            sets: templateExercise.sets.isEmpty
+                ? [.empty]
+                : templateExercise.sets.map {
+                    TemplateSetDraft(
+                        id: $0.id,
+                        weightText: $0.weightText,
+                        repsText: $0.repsText
+                    )
+                }
+        )
+    }
+}
+
+private struct TemplateSetDraft: Identifiable {
+    let id: UUID
+    var weightText: String
+    var repsText: String
+
+    init(id: UUID = UUID(), weightText: String = "", repsText: String = "") {
+        self.id = id
+        self.weightText = weightText
+        self.repsText = repsText
+    }
+
+    static var empty: TemplateSetDraft {
+        TemplateSetDraft()
+    }
+}
+
+private struct RestPickerContext: Identifiable {
+    static let offValue = -1
+    static let values = Array(stride(from: 5, through: 300, by: 5))
+
+    let id: UUID
+}
+
+private struct ReplaceExerciseContext: Identifiable {
+    let id: UUID
+}
+
+#Preview {
+    NavigationStack {
+        AddTemplateView { _ in }
+    }
+    .modelContainer(AddTemplateViewPreview.container)
+}
+
+private enum AddTemplateViewPreview {
+    static let container: ModelContainer = {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try! ModelContainer(for: Exercise.self, configurations: configuration)
+        let context = container.mainContext
+
+        context.insert(Exercise(name: "Leg Extension", category: "Strength", bodyPart: "Quadriceps", equipment: "Machine"))
+        context.insert(Exercise(name: "Smith Squat", category: "Strength", bodyPart: "Quadriceps", equipment: "Machine"))
+        context.insert(Exercise(name: "Cable Fly", category: "Strength", bodyPart: "Chest", equipment: "Cable"))
+
+        return container
+    }()
 }

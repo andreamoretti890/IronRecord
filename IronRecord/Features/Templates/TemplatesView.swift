@@ -3,6 +3,8 @@ import SwiftUI
 struct TemplatesView: View {
     @State private var templates = TemplateRowItem.mock
     @State private var templatePendingDeletion: TemplateRowItem?
+    @State private var templateBeingEdited: TemplateRowItem?
+    @State private var templateBeingDuplicated: TemplateRowItem?
     @State private var isAddRoutinePresented = false
 
     var body: some View {
@@ -10,6 +12,12 @@ struct TemplatesView: View {
             ForEach(templates) { template in
                 TemplateRowView(
                     template: template,
+                    onEditTapped: {
+                        templateBeingEdited = template
+                    },
+                    onDuplicateTapped: {
+                        templateBeingDuplicated = duplicatedDraft(from: template)
+                    },
                     onDeleteTapped: {
                         templatePendingDeletion = template
                     }
@@ -34,6 +42,23 @@ struct TemplatesView: View {
             NavigationStack {
                 AddTemplateView { newTemplate in
                     templates.append(newTemplate)
+                }
+            }
+            .interactiveDismissDisabled()
+        }
+        .sheet(item: $templateBeingEdited) { template in
+            NavigationStack {
+                AddTemplateView(template: template) { updatedTemplate in
+                    updateTemplate(updatedTemplate)
+                }
+            }
+            .interactiveDismissDisabled()
+        }
+        .sheet(item: $templateBeingDuplicated) { template in
+            NavigationStack {
+                AddTemplateView(template: template, savesAsNewTemplate: true) { duplicatedTemplate in
+                    templates.append(duplicatedTemplate)
+                    templateBeingDuplicated = nil
                 }
             }
             .interactiveDismissDisabled()
@@ -66,6 +91,35 @@ struct TemplatesView: View {
     private func deleteTemplate(_ template: TemplateRowItem) {
         templates.removeAll { $0.id == template.id }
         templatePendingDeletion = nil
+    }
+
+    private func updateTemplate(_ template: TemplateRowItem) {
+        guard let index = templates.firstIndex(where: { $0.id == template.id }) else {
+            templateBeingEdited = nil
+            return
+        }
+
+        templates[index] = template
+        templateBeingEdited = nil
+    }
+
+    private func duplicatedDraft(from template: TemplateRowItem) -> TemplateRowItem {
+        TemplateRowItem(
+            title: "\(template.title) (copy)",
+            exercises: template.exercises.map { exercise in
+                TemplateExerciseRowItem(
+                    name: exercise.name,
+                    notes: exercise.notes,
+                    restSeconds: exercise.restSeconds,
+                    sets: exercise.sets.map { set in
+                        TemplateSetRowItem(
+                            weightText: set.weightText,
+                            repsText: set.repsText
+                        )
+                    }
+                )
+            }
+        )
     }
 }
 

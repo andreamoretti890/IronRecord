@@ -1,10 +1,18 @@
 import SwiftUI
 
+enum ExercisePickerSelectionMode {
+    case multiple
+    case single
+}
+
 struct ExercisePickerView: View {
     @Environment(\.dismiss) private var dismiss
 
     let exercises: [ExercisePickerItem]
     let onAddSelected: ([ExercisePickerItem]) -> Void
+    let selectionMode: ExercisePickerSelectionMode
+    let actionTitle: String?
+    let actionSystemImage: String?
 
     @State private var searchText = ""
     @State private var selectedBodyPart: ExerciseBodyPart?
@@ -17,11 +25,26 @@ struct ExercisePickerView: View {
     init(
         exercises: [ExercisePickerItem],
         initiallySelectedIDs: Set<String>,
+        selectionMode: ExercisePickerSelectionMode = .multiple,
+        actionTitle: String? = nil,
+        actionSystemImage: String? = "plus",
         onAddSelected: @escaping ([ExercisePickerItem]) -> Void
     ) {
         self.exercises = exercises
         self.onAddSelected = onAddSelected
-        _selectedExerciseIDs = State(initialValue: initiallySelectedIDs)
+        self.selectionMode = selectionMode
+        self.actionTitle = actionTitle
+        self.actionSystemImage = actionSystemImage
+
+        if selectionMode == .single {
+            if let first = initiallySelectedIDs.first {
+                _selectedExerciseIDs = State(initialValue: [first])
+            } else {
+                _selectedExerciseIDs = State(initialValue: [])
+            }
+        } else {
+            _selectedExerciseIDs = State(initialValue: initiallySelectedIDs)
+        }
     }
 
     var body: some View {
@@ -62,7 +85,13 @@ struct ExercisePickerView: View {
                     ContentUnavailableView.search
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
         }
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                isSearchFieldFocused = false
+            }
+        )
         .searchable(text: $searchText, prompt: "Search exercises")
         .searchFocused($isSearchFieldFocused)
         .navigationTitle("Select Exercises")
@@ -81,6 +110,18 @@ struct ExercisePickerView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Create") {
                     // Placeholder for custom exercise creation flow.
+                }
+            }
+
+            ToolbarItemGroup(placement: .keyboard) {
+                if isSearchFieldFocused {
+                    Spacer()
+                    Button {
+                        isSearchFieldFocused = false
+                    } label: {
+                        Image(systemName: "keyboard.chevron.compact.down")
+                    }
+                    .accessibilityLabel("Hide keyboard")
                 }
             }
         }
@@ -182,15 +223,27 @@ struct ExercisePickerView: View {
     }
 
     private var selectedItemsOrderedByCatalog: [ExercisePickerItem] {
-        exercises
-            .filter { selectedExerciseIDs.contains($0.id) }
+        let selected = exercises.filter { selectedExerciseIDs.contains($0.id) }
+        if selectionMode == .single {
+            return Array(selected.prefix(1))
+        }
+
+        return selected
     }
 
     private func toggleSelection(for exerciseID: String) {
-        if selectedExerciseIDs.contains(exerciseID) {
-            selectedExerciseIDs.remove(exerciseID)
+        if selectionMode == .single {
+            if selectedExerciseIDs.contains(exerciseID) {
+                selectedExerciseIDs.remove(exerciseID)
+            } else {
+                selectedExerciseIDs = [exerciseID]
+            }
         } else {
-            selectedExerciseIDs.insert(exerciseID)
+            if selectedExerciseIDs.contains(exerciseID) {
+                selectedExerciseIDs.remove(exerciseID)
+            } else {
+                selectedExerciseIDs.insert(exerciseID)
+            }
         }
     }
 
@@ -238,19 +291,41 @@ struct ExercisePickerView: View {
         Button {
             addSelectedAndDismiss()
         } label: {
-            Text(addButtonTitle)
-                .frame(maxWidth: .infinity)
-                .contentTransition(.numericText())
+            if let actionSystemImage {
+                Label(addButtonTitle, systemImage: actionSystemImage)
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .foregroundStyle(.white)
+                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 16))
+                    .contentShape(RoundedRectangle(cornerRadius: 16))
+                    .contentTransition(.numericText())
+            } else {
+                Text(addButtonTitle)
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .foregroundStyle(.white)
+                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 16))
+                    .contentShape(RoundedRectangle(cornerRadius: 16))
+                    .contentTransition(.numericText())
+            }
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
+        .buttonStyle(.plain)
         .disabled(selectedExerciseIDs.isEmpty)
-        .accessibilityLabel("Add selected exercises")
+        .accessibilityLabel(selectionMode == .single ? "Replace selected exercise" : "Add selected exercises")
         .accessibilityValue("\(selectedExerciseIDs.count) selected")
-        .buttonBorderShape(.capsule)
     }
 
     private var addButtonTitle: String {
+        if let actionTitle {
+            return actionTitle
+        }
+
+        if selectionMode == .single {
+            return "Replace exercise"
+        }
+
         let count = selectedExerciseIDs.count
         switch count {
         case 0:
