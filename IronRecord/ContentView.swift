@@ -66,7 +66,10 @@ struct ContentView: View {
                 Exercise.self,
                 WorkoutTemplate.self,
                 TemplateExercise.self,
-                TemplateExerciseSet.self
+                TemplateExerciseSet.self,
+                WorkoutSession.self,
+                WorkoutSessionExercise.self,
+                WorkoutSessionSet.self
             ],
             inMemory: true
         )

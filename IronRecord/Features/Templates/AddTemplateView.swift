@@ -3,32 +3,37 @@ import SwiftUI
 
 struct AddTemplateView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
 
     @Query(sort: \Exercise.name) private var availableExercises: [Exercise]
+    @Query(sort: \WorkoutTemplate.createdAt) private var existingTemplates: [WorkoutTemplate]
 
-    private let existingTemplate: TemplateRowItem?
+    private let existingTemplate: WorkoutTemplate?
     private let isEditingMode: Bool
+
     @State private var title = ""
     @State private var exercises: [TemplateExerciseDraft] = []
     @State private var activeRestPicker: RestPickerContext?
     @State private var activeReplacePicker: ReplaceExerciseContext?
     @State private var pendingRestSeconds = RestPickerContext.offValue
     @State private var isShowingDiscardAlert = false
+    @State private var errorMessage: String?
     @FocusState private var focusedField: FocusField?
 
-    var onSave: (TemplateRowItem) -> Void
+    init(template: WorkoutTemplate? = nil, savesAsNewTemplate: Bool = false) {
+        existingTemplate = savesAsNewTemplate ? nil : template
+        isEditingMode = template != nil && !savesAsNewTemplate
 
-    init(
-        template: TemplateRowItem? = nil,
-        savesAsNewTemplate: Bool = false,
-        onSave: @escaping (TemplateRowItem) -> Void
-    ) {
-        self.existingTemplate = savesAsNewTemplate ? nil : template
-        self.isEditingMode = template != nil
-        self.onSave = onSave
-        _title = State(initialValue: template?.title ?? "")
+        let initialTitle: String
+        if savesAsNewTemplate, let template {
+            initialTitle = "\(template.name) (copy)"
+        } else {
+            initialTitle = template?.name ?? ""
+        }
+
+        _title = State(initialValue: initialTitle)
         _exercises = State(
-            initialValue: template?.exercises.map(TemplateExerciseDraft.init(templateExercise:)) ?? []
+            initialValue: template?.sortedExercises.map(TemplateExerciseDraft.init(templateExercise:)) ?? []
         )
     }
 
@@ -77,7 +82,7 @@ struct AddTemplateView: View {
 
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
-                    saveRoutine()
+                    saveTemplate()
                 }
                 .disabled(!canSave)
             }
@@ -123,6 +128,13 @@ struct AddTemplateView: View {
             }
         } message: {
             Text("You have unsaved changes. Are you sure you want to discard this template?")
+        }
+        .alert("Template Error", isPresented: isShowingError) {
+            Button("OK", role: .cancel) {
+                errorMessage = nil
+            }
+        } message: {
+            Text(errorMessage ?? "An unknown error occurred.")
         }
     }
 
@@ -244,11 +256,11 @@ struct AddTemplateView: View {
                                 exerciseID: exercise.id,
                                 setID: set.id
                             )
-                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                    Button("Delete", systemImage: "trash", role: .destructive) {
-                                        deleteSet(exerciseID: exercise.id, setID: set.id)
-                                    }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button("Delete", systemImage: "trash", role: .destructive) {
+                                    deleteSet(exerciseID: exercise.id, setID: set.id)
                                 }
+                            }
                         } else {
                             setRow(
                                 exerciseIndex: exerciseIndex,
@@ -388,8 +400,19 @@ struct AddTemplateView: View {
         return trimmedTitle.isEmpty && exercises.isEmpty
     }
 
+    private var isShowingError: Binding<Bool> {
+        Binding(
+            get: { errorMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    errorMessage = nil
+                }
+            }
+        )
+    }
+
     private var selectableExercises: [ExercisePickerItem] {
-        let modelExercises = availableExercises.map { exercise in
+        availableExercises.map { exercise in
             ExercisePickerItem(
                 id: exercise.name,
                 name: exercise.name,
@@ -407,30 +430,6 @@ struct AddTemplateView: View {
                 )
             )
         }
-
-        guard !modelExercises.isEmpty else {
-            let fallbackNames = Set(TemplateRowItem.mock.flatMap { $0.exercises.map(\.name) }).sorted()
-            return fallbackNames.map { name in
-                ExercisePickerItem(
-                    id: name,
-                    name: name,
-                    bodyPart: ExerciseBodyPart.fromExercise(
-                        name: name,
-                        storedBodyPart: "Others"
-                    ),
-                    equipment: ExerciseEquipment.infer(
-                        equipment: "",
-                        exerciseName: name
-                    ),
-                    mode: ExerciseMode.infer(
-                        equipment: "",
-                        exerciseName: name
-                    )
-                )
-            }
-        }
-
-        return modelExercises
     }
 
     private func addExercises(_ selectedItems: [ExercisePickerItem]) {
@@ -455,8 +454,11 @@ struct AddTemplateView: View {
     }
 
     private func replacementSelectionIDs(for exerciseID: UUID) -> Set<String> {
-        _ = exerciseID
-        return []
+        guard let exercise = exercises.first(where: { $0.id == exerciseID }) else {
+            return []
+        }
+
+        return [exercise.catalogExerciseID]
     }
 
     private func replaceExercise(_ targetExerciseID: UUID, with exercise: ExercisePickerItem) {
@@ -542,32 +544,130 @@ struct AddTemplateView: View {
         return joined.uppercased()
     }
 
-    private func saveRoutine() {
+    private func saveTemplate() {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty, !exercises.isEmpty else {
             return
         }
 
-        onSave(
-            TemplateRowItem(
-                id: existingTemplate?.id ?? UUID(),
-                title: trimmedTitle,
-                exercises: exercises.map { exercise in
-                    TemplateExerciseRowItem(
-                        name: exercise.name,
-                        notes: exercise.notes,
-                        restSeconds: exercise.restSeconds,
-                        sets: exercise.sets.map { set in
-                            TemplateSetRowItem(
-                                weightText: set.weightText,
-                                repsText: set.repsText
-                            )
-                        }
-                    )
-                }
+        guard !hasDuplicateName(trimmedTitle) else {
+            errorMessage = "A template named \(trimmedTitle) already exists."
+            return
+        }
+
+        let template = existingTemplate ?? WorkoutTemplate(name: trimmedTitle)
+        let exerciseByName = Dictionary(uniqueKeysWithValues: availableExercises.map { ($0.name, $0) })
+
+        template.name = trimmedTitle
+
+        if existingTemplate == nil {
+            modelContext.insert(template)
+        } else {
+            let existingEntries = template.exercises
+            template.exercises.removeAll()
+            for entry in existingEntries {
+                modelContext.delete(entry)
+            }
+        }
+
+        let newExercises = exercises.enumerated().map { index, exerciseDraft in
+            let templateExercise = TemplateExercise(
+                position: index + 1,
+                targetSets: max(exerciseDraft.sets.count, 1),
+                targetReps: overallRepTarget(for: exerciseDraft.sets),
+                restSeconds: exerciseDraft.restSeconds ?? 0,
+                notes: exerciseDraft.notes,
+                template: template,
+                exercise: exerciseByName[exerciseDraft.catalogExerciseID]
             )
-        )
-        dismiss()
+
+            templateExercise.prescribedSets = exerciseDraft.sets.enumerated().map { setIndex, setDraft in
+                let parsedRepTarget = parseRepTarget(setDraft.repsText)
+                return TemplateExerciseSet(
+                    position: setIndex + 1,
+                    prescribedWeight: parseWeight(setDraft.weightText),
+                    targetReps: parsedRepTarget.exact,
+                    targetRepMin: parsedRepTarget.min,
+                    targetRepMax: parsedRepTarget.max,
+                    templateExercise: templateExercise
+                )
+            }
+
+            return templateExercise
+        }
+
+        template.exercises = newExercises
+
+        for exercise in newExercises {
+            modelContext.insert(exercise)
+
+            for set in exercise.prescribedSets {
+                modelContext.insert(set)
+            }
+        }
+
+        do {
+            try modelContext.save()
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func hasDuplicateName(_ title: String) -> Bool {
+        existingTemplates.contains { template in
+            if let existingTemplate, template.persistentModelID == existingTemplate.persistentModelID {
+                return false
+            }
+
+            return template.name.compare(title, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        }
+    }
+
+    private func overallRepTarget(for sets: [TemplateSetDraft]) -> String {
+        let values = sets
+            .map(\.repsText)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard let first = values.first else {
+            return ""
+        }
+
+        return values.allSatisfy { $0 == first } ? first : "Variable"
+    }
+
+    private func parseWeight(_ text: String) -> Double? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return nil
+        }
+
+        return Double(trimmed.replacingOccurrences(of: ",", with: "."))
+    }
+
+    private func parseRepTarget(_ text: String) -> (exact: Int?, min: Int?, max: Int?) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return (nil, nil, nil)
+        }
+
+        if let exact = Int(trimmed) {
+            return (exact, nil, nil)
+        }
+
+        let separators = CharacterSet(charactersIn: "-–")
+        let parts = trimmed.components(separatedBy: separators).map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        if parts.count == 2,
+           let min = Int(parts[0]),
+           let max = Int(parts[1]) {
+            return (nil, min, max)
+        }
+
+        return (nil, nil, nil)
     }
 
     private func cancelTapped() {
@@ -617,32 +717,21 @@ private struct TemplateExerciseDraft: Identifiable {
         self.sets = sets
     }
 
-    init(name: String) {
-        self.init(
-            catalogExerciseID: name,
-            name: name,
-            notes: "",
-            notesVisible: false,
-            restSeconds: nil,
-            sets: [.empty]
-        )
-    }
+    init(templateExercise: TemplateExercise) {
+        let catalogExerciseID = templateExercise.exercise?.name ?? templateExercise.displayName
 
-    init(templateExercise: TemplateExerciseRowItem) {
         self.init(
-            id: templateExercise.id,
-            catalogExerciseID: templateExercise.name,
-            name: templateExercise.name,
+            catalogExerciseID: catalogExerciseID,
+            name: templateExercise.displayName,
             notes: templateExercise.notes,
             notesVisible: !templateExercise.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-            restSeconds: templateExercise.restSeconds,
-            sets: templateExercise.sets.isEmpty
-                ? [.empty]
-                : templateExercise.sets.map {
+            restSeconds: templateExercise.restSeconds == 0 ? nil : templateExercise.restSeconds,
+            sets: templateExercise.sortedPrescribedSets.isEmpty
+                ? Array(repeating: TemplateSetDraft(repsText: templateExercise.displayRepTargetText), count: max(templateExercise.targetSets, 1))
+                : templateExercise.sortedPrescribedSets.map {
                     TemplateSetDraft(
-                        id: $0.id,
-                        weightText: $0.weightText,
-                        repsText: $0.repsText
+                        weightText: $0.displayWeightText,
+                        repsText: $0.displayRepText
                     )
                 }
         )
@@ -678,7 +767,7 @@ private struct ReplaceExerciseContext: Identifiable {
 
 #Preview {
     NavigationStack {
-        AddTemplateView { _ in }
+        AddTemplateView()
     }
     .modelContainer(AddTemplateViewPreview.container)
 }
@@ -686,13 +775,14 @@ private struct ReplaceExerciseContext: Identifiable {
 private enum AddTemplateViewPreview {
     static let container: ModelContainer = {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try! ModelContainer(for: Exercise.self, configurations: configuration)
-        let context = container.mainContext
-
-        context.insert(Exercise(name: "Leg Extension", category: "Strength", bodyPart: "Quadriceps", equipment: "Machine"))
-        context.insert(Exercise(name: "Smith Squat", category: "Strength", bodyPart: "Quadriceps", equipment: "Machine"))
-        context.insert(Exercise(name: "Cable Fly", category: "Strength", bodyPart: "Chest", equipment: "Cable"))
-
+        let container = try! ModelContainer(
+            for: Exercise.self,
+            WorkoutTemplate.self,
+            TemplateExercise.self,
+            TemplateExerciseSet.self,
+            configurations: configuration
+        )
+        try! SeedData.seedIfNeeded(in: container.mainContext)
         return container
     }()
 }

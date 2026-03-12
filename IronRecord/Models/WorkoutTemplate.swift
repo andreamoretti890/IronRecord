@@ -9,7 +9,7 @@ import Foundation
 import SwiftData
 
 @Model
-final class WorkoutTemplate {
+final class WorkoutTemplate: Identifiable {
     @Attribute(.unique) var name: String
     var notes: String
     var createdAt: Date
@@ -30,7 +30,7 @@ final class WorkoutTemplate {
 }
 
 @Model
-final class TemplateExercise {
+final class TemplateExercise: Identifiable {
     var position: Int
     var targetSets: Int
     var targetReps: String
@@ -64,7 +64,7 @@ final class TemplateExercise {
 }
 
 @Model
-final class TemplateExerciseSet {
+final class TemplateExerciseSet: Identifiable {
     var position: Int
     var prescribedWeight: Double?
     var targetReps: Int?
@@ -91,6 +91,10 @@ final class TemplateExerciseSet {
 }
 
 extension TemplateExercise {
+    var displayName: String {
+        exercise?.name ?? "Exercise"
+    }
+
     var sortedPrescribedSets: [TemplateExerciseSet] {
         prescribedSets.sorted { left, right in
             left.position < right.position
@@ -113,6 +117,23 @@ extension TemplateExercise {
         }
 
         return "Variable"
+    }
+}
+
+extension WorkoutTemplate {
+    var sortedExercises: [TemplateExercise] {
+        exercises.sorted { left, right in
+            left.position < right.position
+        }
+    }
+
+    var exercisePreview: String {
+        let names = sortedExercises.map(\.displayName)
+        guard !names.isEmpty else {
+            return "No exercises"
+        }
+
+        return names.joined(separator: ", ")
     }
 }
 
