@@ -15,6 +15,7 @@ struct AddTemplateView: View {
     @State private var exercises: [TemplateExerciseDraft] = []
     @State private var activeRestPicker: RestPickerContext?
     @State private var activeReplacePicker: ReplaceExerciseContext?
+    @State private var activeInsertPicker: InsertExerciseContext?
     @State private var pendingRestSeconds = RestPickerContext.offValue
     @State private var isShowingDiscardAlert = false
     @State private var errorMessage: String?
@@ -120,6 +121,22 @@ struct AddTemplateView: View {
                 )
             }
         }
+        .sheet(item: $activeInsertPicker) { context in
+            NavigationStack {
+                ExercisePickerView(
+                    exercises: selectableExercises,
+                    initiallySelectedIDs: [],
+                    selectionMode: .single,
+                    actionTitle: "Add",
+                    onAddSelected: { selectedExerciseItems in
+                        guard let selectedExercise = selectedExerciseItems.first else {
+                            return
+                        }
+                        insertExercise(selectedExercise, around: context)
+                    }
+                )
+            }
+        }
         .alert("Discard Template?", isPresented: $isShowingDiscardAlert) {
             Button("Keep Editing", role: .cancel) { }
             Button("Discard", role: .destructive) {
@@ -195,10 +212,18 @@ struct AddTemplateView: View {
             HStack(alignment: .center, spacing: 12) {
                 initialsBadge(for: exercise.name)
 
-                Text(exercise.name)
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(.tint)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(exercise.name)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.tint)
+
+                    if let equipmentText = exerciseEquipmentText(for: exercise) {
+                        Text(equipmentText)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 Button {
                     withAnimation(.snappy(duration: 0.22, extraBounce: 0)) {
@@ -226,7 +251,22 @@ struct AddTemplateView: View {
                         activeReplacePicker = ReplaceExerciseContext(id: exercise.id)
                     }
                     Button("Reorder", systemImage: "line.3.horizontal") { }
-                    Button("Add to Superset", systemImage: "square.stack.3d.up") { }
+                    Button("Create superset", systemImage: "link") { }
+
+                    Divider()
+
+                    Button("Add exercise above", systemImage: "arrow.up") {
+                        activeInsertPicker = InsertExerciseContext(
+                            targetExerciseID: exercise.id,
+                            direction: .above
+                        )
+                    }
+                    Button("Add exercise below", systemImage: "arrow.down") {
+                        activeInsertPicker = InsertExerciseContext(
+                            targetExerciseID: exercise.id,
+                            direction: .below
+                        )
+                    }
 
                     Divider()
 
@@ -255,28 +295,13 @@ struct AddTemplateView: View {
 
             LazyVStack(spacing: 8) {
                 ForEach(Array(exercises[exerciseIndex].sets.enumerated()), id: \.element.id) { setIndex, set in
-                    if exercises[exerciseIndex].sets.count > 1 {
-                        setRow(
-                            exerciseIndex: exerciseIndex,
-                            setIndex: setIndex,
-                            exerciseID: exercise.id,
-                            setID: set.id
-                        )
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button("Delete", systemImage: "trash", role: .destructive) {
-                                deleteSet(exerciseID: exercise.id, setID: set.id, animated: true)
-                            }
-                        }
-                        .transition(setRowTransition)
-                    } else {
-                        setRow(
-                            exerciseIndex: exerciseIndex,
-                            setIndex: setIndex,
-                            exerciseID: exercise.id,
-                            setID: set.id
-                        )
-                        .transition(setRowTransition)
-                    }
+                    setRow(
+                        exerciseIndex: exerciseIndex,
+                        setIndex: setIndex,
+                        exerciseID: exercise.id,
+                        setID: set.id
+                    )
+                    .transition(setRowTransition)
                 }
             }
             .animation(.snappy(duration: 0.28, extraBounce: 0.03), value: exercises[exerciseIndex].sets.count)
@@ -458,21 +483,29 @@ struct AddTemplateView: View {
         var existingIDs = Set(exercises.map(\.catalogExerciseID))
 
         for item in selectedItems where existingIDs.insert(item.id).inserted {
-            exercises.append(
-                TemplateExerciseDraft(
-                    catalogExerciseID: item.id,
-                    name: item.name,
-                    notes: "",
-                    notesVisible: false,
-                    showsRestTimer: false,
-                    sets: [.empty]
-                )
-            )
+            exercises.append(makeDraft(for: item))
         }
     }
 
     private func deleteExercise(_ exerciseID: UUID) {
         exercises.removeAll { $0.id == exerciseID }
+    }
+
+    private func insertExercise(_ exercise: ExercisePickerItem, around context: InsertExerciseContext) {
+        guard !exercises.contains(where: { $0.catalogExerciseID == exercise.id }),
+              let index = exercises.firstIndex(where: { $0.id == context.targetExerciseID })
+        else {
+            return
+        }
+
+        let insertionIndex = switch context.direction {
+        case .above:
+            index
+        case .below:
+            index + 1
+        }
+
+        exercises.insert(makeDraft(for: exercise), at: insertionIndex)
     }
 
     private func replaceExercise(_ targetExerciseID: UUID, with exercise: ExercisePickerItem) {
@@ -582,6 +615,35 @@ struct AddTemplateView: View {
 
     private func countText(_ count: Int, singular: String) -> String {
         count == 1 ? "1 \(singular)" : "\(count) \(singular)s"
+    }
+
+    private func exerciseEquipmentText(for exercise: TemplateExerciseDraft) -> String? {
+        if let catalogExercise = availableExercises.first(where: {
+            $0.name == exercise.catalogExerciseID || $0.name == exercise.name
+        }) {
+            let trimmedEquipment = catalogExercise.equipment.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedEquipment.isEmpty {
+                return trimmedEquipment
+            }
+        }
+
+        let inferredEquipment = ExerciseEquipment.infer(
+            equipment: "",
+            exerciseName: exercise.name
+        )
+
+        return inferredEquipment == .other ? nil : inferredEquipment.rawValue
+    }
+
+    private func makeDraft(for exercise: ExercisePickerItem) -> TemplateExerciseDraft {
+        TemplateExerciseDraft(
+            catalogExerciseID: exercise.id,
+            name: exercise.name,
+            notes: "",
+            notesVisible: false,
+            showsRestTimer: false,
+            sets: [.empty]
+        )
     }
 
     private func initials(from name: String) -> String {
@@ -848,6 +910,20 @@ private struct RestPickerContext: Identifiable {
 
 private struct ReplaceExerciseContext: Identifiable {
     let id: UUID
+}
+
+private struct InsertExerciseContext: Identifiable {
+    let targetExerciseID: UUID
+    let direction: InsertExerciseDirection
+
+    var id: String {
+        "\(targetExerciseID.uuidString)-\(direction.rawValue)"
+    }
+}
+
+private enum InsertExerciseDirection: String {
+    case above
+    case below
 }
 
 #Preview {

@@ -3,7 +3,7 @@
 ## Objective
 - Build an offline-first iOS app for logging gym progress.
 - Use SwiftUI for UI and SwiftData for local persistence.
-- Current scope covers reusable workout templates and in-progress workout session tracking.
+- Current scope covers reusable workout templates.
 
 ## Architecture (Minimal, Scalable)
 - Pattern: feature-first SwiftUI over shared SwiftData models.
@@ -18,9 +18,6 @@
 - `WorkoutTemplate`: reusable workout definition.
 - `TemplateExercise`: ordered exercise prescription within a template.
 - `TemplateExerciseSet`: per-set template prescription metadata.
-- `WorkoutSession`: an in-progress or finished workout created from a template.
-- `WorkoutSessionExercise`: exercise snapshot inside a session.
-- `WorkoutSessionSet`: per-set planned and actual workout data inside a session.
 
 ## Current Product Behavior
 - App opens directly into Templates.
@@ -36,13 +33,6 @@
   - Search with initial focus.
   - Multi-select and add selected exercises.
   - Filters for body part, equipment, and mode (mode is filter-only, not shown in rows).
-- Starting a template creates a persisted `WorkoutSession` and navigates into the active workout flow.
-- If a workout is already active, the user can resume it or discard it before starting another one.
-- Active workout UI supports:
-  - Live elapsed-time header.
-  - Per-set logging with planned vs actual values.
-  - Adding and deleting extra sets.
-  - Finish and discard flows with persistence.
 
 ## Constraints
 - Minimum deployment target is iOS 26.
@@ -50,7 +40,6 @@
 - Seed operation must remain idempotent and safe to run on each launch.
 - Seed must backfill missing starter entities in partially initialized stores.
 - Prefer additive migrations; do not break existing user template/exercise data.
-- Preserve active workout data unless the user explicitly discards it.
 
 ## Working Rules
 - Add new screens under `IronRecord/Features/<FeatureName>/`.
@@ -76,4 +65,3 @@
 - Handles empty-state UI.
 - Preserves offline behavior.
 - If persistence is in scope, writes/reads through SwiftData correctly.
-- If workout execution is in scope, active-session resume/discard behavior remains coherent.
