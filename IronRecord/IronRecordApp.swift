@@ -14,13 +14,6 @@ struct IronRecordApp: App {
         WindowGroup {
             ContentView()
         }
-        .modelContainer(
-            for: [
-                Exercise.self,
-                WorkoutTemplate.self,
-                TemplateExercise.self,
-                TemplateExerciseSet.self
-            ]
-        )
+        .modelContainer(IronRecordModelContainer.shared)
     }
 }
