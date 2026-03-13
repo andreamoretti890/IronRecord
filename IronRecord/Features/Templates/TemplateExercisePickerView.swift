@@ -12,7 +12,6 @@ struct ExercisePickerView: View {
     let onAddSelected: ([ExercisePickerItem]) -> Void
     let selectionMode: ExercisePickerSelectionMode
     let actionTitle: String?
-    let actionSystemImage: String?
 
     @State private var searchText = ""
     @State private var selectedBodyPart: ExerciseBodyPart?
@@ -27,14 +26,12 @@ struct ExercisePickerView: View {
         initiallySelectedIDs: Set<String>,
         selectionMode: ExercisePickerSelectionMode = .multiple,
         actionTitle: String? = nil,
-        actionSystemImage: String? = "plus",
         onAddSelected: @escaping ([ExercisePickerItem]) -> Void
     ) {
         self.exercises = exercises
         self.onAddSelected = onAddSelected
         self.selectionMode = selectionMode
         self.actionTitle = actionTitle
-        self.actionSystemImage = actionSystemImage
 
         if selectionMode == .single {
             if let first = initiallySelectedIDs.first {
@@ -50,29 +47,10 @@ struct ExercisePickerView: View {
     var body: some View {
         VStack(spacing: 10) {
             filterBar
+            customExerciseButton
 
             List(filteredExercises) { exercise in
-                Button {
-                    toggleSelection(for: exercise.id)
-                } label: {
-                    HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(exercise.name)
-                                .foregroundStyle(.primary)
-                            Text(exercise.bodyPart.rawValue)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-
-                        if selectedExerciseIDs.contains(exercise.id) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.tint)
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
+                exerciseRow(exercise)
             }
             .overlay {
                 if exercises.isEmpty {
@@ -97,9 +75,6 @@ struct ExercisePickerView: View {
         .navigationTitle("Select Exercises")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
-        .onAppear {
-            isSearchFieldFocused = true
-        }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") {
@@ -108,9 +83,10 @@ struct ExercisePickerView: View {
             }
 
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Create") {
-                    // Placeholder for custom exercise creation flow.
+                Button(toolbarActionTitle) {
+                    addSelectedAndDismiss()
                 }
+                .disabled(selectedExerciseIDs.isEmpty)
             }
 
             ToolbarItemGroup(placement: .keyboard) {
@@ -125,16 +101,6 @@ struct ExercisePickerView: View {
                 }
             }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if !exercises.isEmpty && !selectedExerciseIDs.isEmpty {
-                selectionDock
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                    .padding(.bottom, 8)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
-        .animation(.snappy(duration: 0.25), value: selectedExerciseIDs.count)
         .animation(.snappy(duration: 0.25), value: exercises.isEmpty)
         .sheet(item: $activeFilterPicker) { picker in
             NavigationStack {
@@ -197,6 +163,26 @@ struct ExercisePickerView: View {
             .padding(.vertical, 2)
         }
         .scrollIndicators(.hidden)
+    }
+
+    private var customExerciseButton: some View {
+        Button {
+            // Placeholder for custom exercise creation flow.
+        } label: {
+            Label("Add custom exercise", systemImage: "plus")
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .foregroundStyle(Color.accentColor)
+                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
     }
 
     private var filteredExercises: [ExercisePickerItem] {
@@ -287,54 +273,57 @@ struct ExercisePickerView: View {
         selectedBodyPart != nil || selectedEquipment != nil || selectedMode != nil
     }
 
-    private var selectionDock: some View {
-        Button {
-            addSelectedAndDismiss()
-        } label: {
-            if let actionSystemImage {
-                Label(addButtonTitle, systemImage: actionSystemImage)
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .foregroundStyle(.white)
-                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 16))
-                    .contentShape(RoundedRectangle(cornerRadius: 16))
-                    .contentTransition(.numericText())
-            } else {
-                Text(addButtonTitle)
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .foregroundStyle(.white)
-                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 16))
-                    .contentShape(RoundedRectangle(cornerRadius: 16))
-                    .contentTransition(.numericText())
-            }
-        }
-        .buttonStyle(.plain)
-        .disabled(selectedExerciseIDs.isEmpty)
-        .accessibilityLabel(selectionMode == .single ? "Replace selected exercise" : "Add selected exercises")
-        .accessibilityValue("\(selectedExerciseIDs.count) selected")
-    }
-
-    private var addButtonTitle: String {
+    private var toolbarActionTitle: String {
         if let actionTitle {
             return actionTitle
         }
 
-        if selectionMode == .single {
-            return "Replace exercise"
-        }
+        return selectionMode == .single ? "Replace" : "Add"
+    }
 
-        let count = selectedExerciseIDs.count
-        switch count {
-        case 0:
-            return "Add exercises"
-        case 1:
-            return "Add 1 exercise"
-        default:
-            return "Add \(count) exercises"
+    private func exerciseRow(_ exercise: ExercisePickerItem) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(exercise.name)
+                    .foregroundStyle(.primary)
+
+                Text(exercise.bodyPart.rawValue)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            selectionButton(for: exercise)
         }
+    }
+
+    private func selectionButton(for exercise: ExercisePickerItem) -> some View {
+        let isSelected = selectedExerciseIDs.contains(exercise.id)
+        let unselectedIconName = selectionMode == .single ? "arrow.triangle.2.circlepath" : "plus"
+
+        return Button {
+            toggleSelection(for: exercise.id)
+        } label: {
+            Image(systemName: isSelected ? "checkmark" : unselectedIconName)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(isSelected ? Color.white : Color.accentColor)
+                .frame(width: 32, height: 32)
+                .background(
+                    isSelected ? Color.accentColor : Color.clear,
+                    in: RoundedRectangle(cornerRadius: 10)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(
+                            isSelected ? Color.accentColor : Color(.separator),
+                            lineWidth: 1
+                        )
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isSelected ? "Deselect \(exercise.name)" : "Select \(exercise.name)")
     }
 
     private func addSelectedAndDismiss() {

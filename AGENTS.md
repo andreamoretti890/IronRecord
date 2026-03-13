@@ -3,27 +3,14 @@
 ## Objective
 - Build an offline-first iOS app for logging gym progress.
 - Use SwiftUI for UI and SwiftData for local persistence.
-- Current scope is templates-first: iterate quickly on template browsing/creation UX before expanding to routines/sessions.
-
-## Codebase Map
-- `IronRecord/IronRecordApp.swift`: app entry point and SwiftData container registration.
-- `IronRecord/ContentView.swift`: root `NavigationStack` and first-launch seed trigger.
-- `IronRecord/Models/Exercise.swift`: canonical exercise catalog model.
-- `IronRecord/Models/WorkoutTemplate.swift`: template models (`WorkoutTemplate`, `TemplateExercise`, `TemplateExerciseSet`).
-- `IronRecord/Seed/SeedData.swift`: idempotent starter data seeding.
-- `IronRecord/Features/Templates/TemplatesView.swift`: templates list screen + add/delete presentation.
-- `IronRecord/Features/Templates/TemplateRowView.swift`: template row UI and temporary row model (`TemplateRowItem`).
-- `IronRecord/Features/Templates/AddTemplateView.swift`: add-template form and save validation.
-- `IronRecord/Features/Templates/TemplateExercisePickerView.swift`: searchable multi-select picker.
-- `IronRecord/Features/Templates/TemplateExerciseFilters.swift`: filter/value models and inference helpers.
-- `IronRecord/Features/Templates/TemplateExerciseFilterViews.swift`: reusable filter chip and filter selection sheet UI.
+- Current scope covers reusable workout templates.
 
 ## Architecture (Minimal, Scalable)
 - Pattern: feature-first SwiftUI over shared SwiftData models.
 - Data flow:
-  - Views read with `@Query` when persistence data is needed.
-  - Feature views write through `modelContext` when persistence is enabled.
-  - Keep lightweight UI-only state local to feature views while iterating on UX.
+  - Views read persisted data with `@Query`.
+  - Feature views write through `modelContext` and save explicitly after mutations.
+  - Keep transient UI state local to the feature view that owns the interaction.
 - Keep models as source of truth; avoid duplicating persisted data in parallel model layers.
 
 ## Domain Boundaries
@@ -32,19 +19,20 @@
 - `TemplateExercise`: ordered exercise prescription within a template.
 - `TemplateExerciseSet`: per-set template prescription metadata.
 
-## Current Product Behavior (Templates Focus)
+## Current Product Behavior
 - App opens directly into Templates.
-- Template list is currently UI-only and backed by local mock rows.
-- User can create a template via sheet:
+- Seed data backfills starter exercises and starter templates on launch.
+- Templates are persisted with SwiftData and support create, edit, duplicate, and delete flows.
+- Template editing supports:
   - Editable title.
-  - Add/remove exercises.
+  - Add/remove/replace exercises.
+  - Exercise notes, rest timer editing, and per-set prescription editing.
   - Save disabled until title is non-empty and at least one exercise exists.
-  - Interactive swipe-to-dismiss is disabled for the add-template sheet.
+  - Interactive swipe-to-dismiss disabled for template forms.
 - Exercise picker supports:
   - Search with initial focus.
   - Multi-select and add selected exercises.
   - Filters for body part, equipment, and mode (mode is filter-only, not shown in rows).
-- Delete is available from each template row menu with alert confirmation.
 
 ## Constraints
 - Minimum deployment target is iOS 26.
@@ -59,17 +47,13 @@
 - Update `IronRecord/Seed/SeedData.swift` when introducing core entities needed for first-run UX.
 - Keep naming explicit and domain-oriented (`WorkoutTemplate`, not `TemplateManager`).
 - Include lightweight previews for user-facing SwiftUI screens.
-- Keep templates feature split by responsibility (list, row, add flow, picker, filters).
+- Keep feature files split by responsibility instead of collapsing templates or session flows into one file.
 
-## Fast Path (Where To Edit First)
-- Templates list actions/presentation: `IronRecord/Features/Templates/TemplatesView.swift`
-- Template row UI/actions menu: `IronRecord/Features/Templates/TemplateRowView.swift`
-- Add-template flow + validation: `IronRecord/Features/Templates/AddTemplateView.swift`
-- Exercise picker flow: `IronRecord/Features/Templates/TemplateExercisePickerView.swift`
-- Filter models + inference rules: `IronRecord/Features/Templates/TemplateExerciseFilters.swift`
-- Filter UI components: `IronRecord/Features/Templates/TemplateExerciseFilterViews.swift`
-- Seed/backfill behavior: `IronRecord/Seed/SeedData.swift`
-- Model evolution: `IronRecord/Models/WorkoutTemplate.swift`
+## Skills
+- Use `swiftui-pro` for any task that reads, writes, reviews, or refactors SwiftUI views in this repo.
+- Use `swiftui-pro` when touching navigation, sheets, alerts, forms, lists, accessibility, animations, or SwiftUI performance behavior.
+- Use `swiftui-pro` before proposing modern SwiftUI API migrations or non-trivial UI structure changes.
+- Skip `swiftui-pro` only for tasks that are strictly non-UI, such as pure SwiftData model changes, seed data updates, or repo documentation with no SwiftUI impact.
 
 ## Manual Verification Commands
 - Build:

@@ -119,8 +119,20 @@ private extension SeedData {
                 exercise: exercise
             )
 
+            entry.prescribedSets = (1...seed.targetSets).map { setPosition in
+                TemplateExerciseSet(
+                    position: setPosition,
+                    targetReps: Int(seed.targetReps),
+                    restSeconds: seed.restSeconds,
+                    templateExercise: entry
+                )
+            }
+
             template.exercises.append(entry)
             context.insert(entry)
+            for set in entry.prescribedSets {
+                context.insert(set)
+            }
             existingKeys.insert(key)
         }
     }
@@ -183,56 +195,56 @@ private extension SeedData {
             name: "Push A",
             notes: "Chest, shoulders, and triceps focus.",
             exercises: [
-                TemplateExerciseSeed(exerciseName: "Barbell Bench Press", targetSets: 4, targetReps: "5-8", restSeconds: 150, notes: ""),
-                TemplateExerciseSeed(exerciseName: "Incline Dumbbell Press", targetSets: 3, targetReps: "8-12", restSeconds: 120, notes: ""),
-                TemplateExerciseSeed(exerciseName: "Seated Dumbbell Shoulder Press", targetSets: 3, targetReps: "8-10", restSeconds: 120, notes: ""),
-                TemplateExerciseSeed(exerciseName: "Cable Lateral Raise", targetSets: 3, targetReps: "12-15", restSeconds: 90, notes: ""),
-                TemplateExerciseSeed(exerciseName: "Triceps Rope Pushdown", targetSets: 3, targetReps: "10-15", restSeconds: 75, notes: "")
+                TemplateExerciseSeed(exerciseName: "Barbell Bench Press", targetSets: 4, targetReps: "6", restSeconds: 150, notes: ""),
+                TemplateExerciseSeed(exerciseName: "Incline Dumbbell Press", targetSets: 3, targetReps: "8", restSeconds: 120, notes: ""),
+                TemplateExerciseSeed(exerciseName: "Seated Dumbbell Shoulder Press", targetSets: 3, targetReps: "8", restSeconds: 120, notes: ""),
+                TemplateExerciseSeed(exerciseName: "Cable Lateral Raise", targetSets: 3, targetReps: "12", restSeconds: 90, notes: ""),
+                TemplateExerciseSeed(exerciseName: "Triceps Rope Pushdown", targetSets: 3, targetReps: "12", restSeconds: 75, notes: "")
             ]
         ),
         TemplateSeed(
             name: "Pull A",
             notes: "Lats, upper back, and biceps focus.",
             exercises: [
-                TemplateExerciseSeed(exerciseName: "Pull-Up", targetSets: 4, targetReps: "5-8", restSeconds: 150, notes: ""),
-                TemplateExerciseSeed(exerciseName: "Barbell Row", targetSets: 4, targetReps: "6-10", restSeconds: 150, notes: ""),
-                TemplateExerciseSeed(exerciseName: "Lat Pulldown", targetSets: 3, targetReps: "10-12", restSeconds: 120, notes: ""),
-                TemplateExerciseSeed(exerciseName: "Face Pull", targetSets: 3, targetReps: "12-15", restSeconds: 90, notes: ""),
-                TemplateExerciseSeed(exerciseName: "Dumbbell Biceps Curl", targetSets: 3, targetReps: "10-15", restSeconds: 75, notes: "")
+                TemplateExerciseSeed(exerciseName: "Pull-Up", targetSets: 4, targetReps: "6", restSeconds: 150, notes: ""),
+                TemplateExerciseSeed(exerciseName: "Barbell Row", targetSets: 4, targetReps: "8", restSeconds: 150, notes: ""),
+                TemplateExerciseSeed(exerciseName: "Lat Pulldown", targetSets: 3, targetReps: "10", restSeconds: 120, notes: ""),
+                TemplateExerciseSeed(exerciseName: "Face Pull", targetSets: 3, targetReps: "12", restSeconds: 90, notes: ""),
+                TemplateExerciseSeed(exerciseName: "Dumbbell Biceps Curl", targetSets: 3, targetReps: "12", restSeconds: 75, notes: "")
             ]
         ),
         TemplateSeed(
             name: "Legs A",
             notes: "Quad and posterior chain emphasis.",
             exercises: [
-                TemplateExerciseSeed(exerciseName: "Back Squat", targetSets: 4, targetReps: "5-8", restSeconds: 180, notes: ""),
-                TemplateExerciseSeed(exerciseName: "Romanian Deadlift", targetSets: 3, targetReps: "6-10", restSeconds: 150, notes: ""),
-                TemplateExerciseSeed(exerciseName: "Leg Press", targetSets: 3, targetReps: "10-12", restSeconds: 120, notes: ""),
-                TemplateExerciseSeed(exerciseName: "Lying Leg Curl", targetSets: 3, targetReps: "10-15", restSeconds: 90, notes: ""),
-                TemplateExerciseSeed(exerciseName: "Standing Calf Raise", targetSets: 4, targetReps: "12-20", restSeconds: 75, notes: "")
+                TemplateExerciseSeed(exerciseName: "Back Squat", targetSets: 4, targetReps: "6", restSeconds: 180, notes: ""),
+                TemplateExerciseSeed(exerciseName: "Romanian Deadlift", targetSets: 3, targetReps: "8", restSeconds: 150, notes: ""),
+                TemplateExerciseSeed(exerciseName: "Leg Press", targetSets: 3, targetReps: "10", restSeconds: 120, notes: ""),
+                TemplateExerciseSeed(exerciseName: "Lying Leg Curl", targetSets: 3, targetReps: "12", restSeconds: 90, notes: ""),
+                TemplateExerciseSeed(exerciseName: "Standing Calf Raise", targetSets: 4, targetReps: "15", restSeconds: 75, notes: "")
             ]
         ),
         TemplateSeed(
             name: "Upper A",
             notes: "Balanced upper body day.",
             exercises: [
-                TemplateExerciseSeed(exerciseName: "Barbell Bench Press", targetSets: 4, targetReps: "5-8", restSeconds: 150, notes: ""),
-                TemplateExerciseSeed(exerciseName: "Seated Cable Row", targetSets: 4, targetReps: "8-12", restSeconds: 120, notes: ""),
-                TemplateExerciseSeed(exerciseName: "Seated Dumbbell Shoulder Press", targetSets: 3, targetReps: "8-10", restSeconds: 120, notes: ""),
-                TemplateExerciseSeed(exerciseName: "Cable Lateral Raise", targetSets: 3, targetReps: "12-15", restSeconds: 90, notes: ""),
-                TemplateExerciseSeed(exerciseName: "Triceps Rope Pushdown", targetSets: 2, targetReps: "10-15", restSeconds: 75, notes: ""),
-                TemplateExerciseSeed(exerciseName: "Dumbbell Biceps Curl", targetSets: 2, targetReps: "10-15", restSeconds: 75, notes: "")
+                TemplateExerciseSeed(exerciseName: "Barbell Bench Press", targetSets: 4, targetReps: "6", restSeconds: 150, notes: ""),
+                TemplateExerciseSeed(exerciseName: "Seated Cable Row", targetSets: 4, targetReps: "8", restSeconds: 120, notes: ""),
+                TemplateExerciseSeed(exerciseName: "Seated Dumbbell Shoulder Press", targetSets: 3, targetReps: "8", restSeconds: 120, notes: ""),
+                TemplateExerciseSeed(exerciseName: "Cable Lateral Raise", targetSets: 3, targetReps: "12", restSeconds: 90, notes: ""),
+                TemplateExerciseSeed(exerciseName: "Triceps Rope Pushdown", targetSets: 2, targetReps: "12", restSeconds: 75, notes: ""),
+                TemplateExerciseSeed(exerciseName: "Dumbbell Biceps Curl", targetSets: 2, targetReps: "12", restSeconds: 75, notes: "")
             ]
         ),
         TemplateSeed(
             name: "Lower A",
             notes: "Lower body strength and hypertrophy.",
             exercises: [
-                TemplateExerciseSeed(exerciseName: "Back Squat", targetSets: 4, targetReps: "5-8", restSeconds: 180, notes: ""),
-                TemplateExerciseSeed(exerciseName: "Romanian Deadlift", targetSets: 3, targetReps: "6-10", restSeconds: 150, notes: ""),
-                TemplateExerciseSeed(exerciseName: "Leg Press", targetSets: 3, targetReps: "10-15", restSeconds: 120, notes: ""),
-                TemplateExerciseSeed(exerciseName: "Leg Extension", targetSets: 2, targetReps: "12-15", restSeconds: 90, notes: ""),
-                TemplateExerciseSeed(exerciseName: "Standing Calf Raise", targetSets: 4, targetReps: "12-20", restSeconds: 75, notes: "")
+                TemplateExerciseSeed(exerciseName: "Back Squat", targetSets: 4, targetReps: "6", restSeconds: 180, notes: ""),
+                TemplateExerciseSeed(exerciseName: "Romanian Deadlift", targetSets: 3, targetReps: "8", restSeconds: 150, notes: ""),
+                TemplateExerciseSeed(exerciseName: "Leg Press", targetSets: 3, targetReps: "12", restSeconds: 120, notes: ""),
+                TemplateExerciseSeed(exerciseName: "Leg Extension", targetSets: 2, targetReps: "12", restSeconds: 90, notes: ""),
+                TemplateExerciseSeed(exerciseName: "Standing Calf Raise", targetSets: 4, targetReps: "15", restSeconds: 75, notes: "")
             ]
         )
     ]

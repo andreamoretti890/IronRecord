@@ -5,20 +5,10 @@ struct TemplatesView: View {
     @Environment(\.modelContext) private var modelContext
 
     @Query(sort: \WorkoutTemplate.createdAt) private var templates: [WorkoutTemplate]
-    @Query(
-        filter: #Predicate<WorkoutSession> { session in
-            session.finishedAt == nil
-        },
-        sort: \WorkoutSession.startedAt,
-        order: .reverse
-    )
-    private var activeSessions: [WorkoutSession]
 
     @State private var templatePendingDeletion: WorkoutTemplate?
     @State private var templateBeingEdited: WorkoutTemplate?
     @State private var templateBeingDuplicated: WorkoutTemplate?
-    @State private var pendingStartTemplate: WorkoutTemplate?
-    @State private var activeSessionRoute: WorkoutSession?
     @State private var isAddTemplatePresented = false
     @State private var errorMessage: String?
 
@@ -36,9 +26,6 @@ struct TemplatesView: View {
                 ForEach(templates) { template in
                     TemplateRowView(
                         template: template,
-                        onStartTapped: {
-                            startTapped(for: template)
-                        },
                         onEditTapped: {
                             templateBeingEdited = template
                         },
@@ -84,9 +71,6 @@ struct TemplatesView: View {
             }
             .interactiveDismissDisabled()
         }
-        .navigationDestination(item: $activeSessionRoute) { session in
-            WorkoutSessionView(session: session)
-        }
         .alert(
             "Delete Template",
             isPresented: isShowingDeleteAlert,
@@ -98,27 +82,6 @@ struct TemplatesView: View {
             Button("Cancel", role: .cancel) { }
         } message: { template in
             Text("Delete \(template.name)? This action cannot be undone.")
-        }
-        .alert(
-            "Workout In Progress",
-            isPresented: isShowingStartAlert,
-            presenting: pendingStartTemplate
-        ) { template in
-            Button("Resume Workout") {
-                if let session = activeSessions.first {
-                    activeSessionRoute = session
-                }
-                pendingStartTemplate = nil
-            }
-            Button("Discard and Start New", role: .destructive) {
-                replaceActiveWorkoutAndStart(template)
-            }
-            Button("Cancel", role: .cancel) {
-                pendingStartTemplate = nil
-            }
-        } message: { _ in
-            let title = activeSessions.first?.titleSnapshot ?? "your workout"
-            Text("You already have \(title) in progress.")
         }
         .alert("Templates Error", isPresented: isShowingError) {
             Button("OK", role: .cancel) {
@@ -140,17 +103,6 @@ struct TemplatesView: View {
         )
     }
 
-    private var isShowingStartAlert: Binding<Bool> {
-        Binding(
-            get: { pendingStartTemplate != nil && !activeSessions.isEmpty },
-            set: { isPresented in
-                if !isPresented {
-                    pendingStartTemplate = nil
-                }
-            }
-        )
-    }
-
     private var isShowingError: Binding<Bool> {
         Binding(
             get: { errorMessage != nil },
@@ -160,53 +112,6 @@ struct TemplatesView: View {
                 }
             }
         )
-    }
-
-    private func startTapped(for template: WorkoutTemplate) {
-        if !activeSessions.isEmpty {
-            pendingStartTemplate = template
-            return
-        }
-
-        startWorkout(from: template)
-    }
-
-    private func replaceActiveWorkoutAndStart(_ template: WorkoutTemplate) {
-        guard let activeSession = activeSessions.first else {
-            startWorkout(from: template)
-            return
-        }
-
-        modelContext.delete(activeSession)
-        pendingStartTemplate = nil
-
-        do {
-            try modelContext.save()
-            startWorkout(from: template)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    private func startWorkout(from template: WorkoutTemplate) {
-        let session = WorkoutSession(template: template)
-        modelContext.insert(session)
-
-        for exercise in session.exercises {
-            modelContext.insert(exercise)
-
-            for set in exercise.sets {
-                modelContext.insert(set)
-            }
-        }
-
-        do {
-            try modelContext.save()
-            activeSessionRoute = session
-        } catch {
-            modelContext.delete(session)
-            errorMessage = error.localizedDescription
-        }
     }
 
     private func deleteTemplate(_ template: WorkoutTemplate) {
@@ -236,9 +141,6 @@ private enum TemplatesPreview {
             WorkoutTemplate.self,
             TemplateExercise.self,
             TemplateExerciseSet.self,
-            WorkoutSession.self,
-            WorkoutSessionExercise.self,
-            WorkoutSessionSet.self,
             configurations: configuration
         )
         try! SeedData.seedIfNeeded(in: container.mainContext)

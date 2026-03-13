@@ -3,7 +3,6 @@ import SwiftUI
 
 struct TemplateRowView: View {
     let template: WorkoutTemplate
-    let onStartTapped: () -> Void
     let onEditTapped: () -> Void
     let onDuplicateTapped: () -> Void
     let onDeleteTapped: () -> Void
@@ -41,9 +40,9 @@ struct TemplateRowView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
                 .truncationMode(.tail)
-
+            
             Button("Start Template") {
-                onStartTapped()
+                
             }
             .buttonStyle(.borderedProminent)
             .accessibilityHint("Starts \(template.name)")
@@ -58,7 +57,6 @@ struct TemplateRowView: View {
         if let template = TemplateRowPreview.sampleTemplate {
             TemplateRowView(
                 template: template,
-                onStartTapped: {},
                 onEditTapped: {},
                 onDuplicateTapped: {},
                 onDeleteTapped: {}
