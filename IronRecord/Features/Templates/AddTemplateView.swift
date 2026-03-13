@@ -40,7 +40,7 @@ struct AddTemplateView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 18) {
+            LazyVStack(alignment: .leading, spacing: 14) {
                 titleCard
 
                 if exercises.isEmpty {
@@ -48,15 +48,7 @@ struct AddTemplateView: View {
                 }
 
                 ForEach(Array(exercises.enumerated()), id: \.element.id) { index, exercise in
-                    VStack(spacing: 0) {
-                        exerciseCard(exerciseIndex: index, exercise: exercise)
-
-                        if index < exercises.count - 1 {
-                            Divider()
-                                .padding(.top, 14)
-                                .padding(.leading, 16)
-                        }
-                    }
+                    exerciseCard(exerciseIndex: index, exercise: exercise)
                 }
 
                 addExerciseLink
@@ -156,18 +148,15 @@ struct AddTemplateView: View {
 
     private var titleCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Template Title")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
             TextField("Template title", text: $title)
                 .textInputAutocapitalization(.words)
                 .autocorrectionDisabled()
-                .font(.title3.weight(.semibold))
+                .font(.title2.bold())
                 .focused($focusedField, equals: .title)
 
             Text(templateSummaryText)
                 .font(.subheadline)
+                .fontWeight(.semibold)
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 16)
@@ -208,18 +197,19 @@ struct AddTemplateView: View {
     }
 
     private func exerciseCard(exerciseIndex: Int, exercise: TemplateExerciseDraft) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center, spacing: 12) {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 10) {
                 initialsBadge(for: exercise.name)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(exercise.name)
-                        .font(.title3.weight(.semibold))
+                        .font(.headline.weight(.semibold))
                         .foregroundStyle(.tint)
 
                     if let equipmentText = exerciseEquipmentText(for: exercise) {
                         Text(equipmentText)
-                            .font(.subheadline)
+                            .font(.footnote)
+                            .fontWeight(.semibold)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -231,12 +221,12 @@ struct AddTemplateView: View {
                     }
                 } label: {
                     Image(systemName: "timer")
-                        .font(.headline)
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(exercise.showsRestTimer ? Color.accentColor : .secondary)
-                        .frame(width: 38, height: 38)
+                        .frame(width: 36, height: 36)
                         .background(
                             (exercise.showsRestTimer ? Color.accentColor.opacity(0.14) : Color(.tertiarySystemBackground)),
-                            in: RoundedRectangle(cornerRadius: 12)
+                            in: RoundedRectangle(cornerRadius: 10)
                         )
                 }
                 .buttonStyle(.plain)
@@ -275,9 +265,12 @@ struct AddTemplateView: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis")
-                        .font(.headline)
-                        .padding(10)
-                        .contentShape(Rectangle())
+                        .font(.subheadline.weight(.semibold))
+                        .frame(width: 36, height: 36)
+                        .background(
+                            Color(.tertiarySystemBackground),
+                            in: RoundedRectangle(cornerRadius: 10)
+                        )
                 }
                 .buttonStyle(.plain)
             }
@@ -286,8 +279,8 @@ struct AddTemplateView: View {
                 TextField("Add routine notes here", text: $exercises[exerciseIndex].notes, axis: .vertical)
                     .lineLimit(nil)
                     .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+                    .padding(.vertical, 8)
+                    .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
                     .focused($focusedField, equals: .notes(exercise.id))
             }
 
@@ -312,24 +305,26 @@ struct AddTemplateView: View {
                 }
             } label: {
                 Label("Add Set", systemImage: "plus")
-                    .font(.headline)
+                    .font(.subheadline.weight(.semibold))
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
+                    .frame(minHeight: 44)
                     .foregroundStyle(.primary)
-                    .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
-                    .contentShape(RoundedRectangle(cornerRadius: 16))
+                    .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
+                    .contentShape(RoundedRectangle(cornerRadius: 14))
             }
             .buttonStyle(.plain)
             .animation(nil, value: exercises[exerciseIndex].sets.count)
         }
-        .padding(.horizontal, 16)
+        .padding(14)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18))
+        .padding(.horizontal, 20)
         .animation(.snappy(duration: 0.22, extraBounce: 0), value: exercise.showsRestTimer)
     }
 
     private func setTableHeader(showsRestTimer: Bool) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Text("SET")
-                .frame(width: 44, alignment: .center)
+                .frame(width: 40, alignment: .center)
 
             Text("KG")
                 .frame(maxWidth: .infinity)
@@ -342,7 +337,7 @@ struct AddTemplateView: View {
                     .frame(maxWidth: .infinity)
             }
         }
-        .font(.headline)
+        .font(.subheadline.weight(.semibold))
         .foregroundStyle(.secondary)
     }
 
@@ -352,25 +347,57 @@ struct AddTemplateView: View {
         exerciseID: UUID,
         setID: UUID
     ) -> some View {
-        HStack(spacing: 12) {
-            Text("\(setIndex + 1)")
-                .font(.title3.weight(.semibold))
-                .frame(width: 44, alignment: .center)
+        HStack(spacing: 10) {
+            Menu {
+                Picker("Set Type", selection: setTypeBinding(exerciseIndex: exerciseIndex, setIndex: setIndex)) {
+                    ForEach(TemplateSetType.menuPrimaryCases, id: \.self) { type in
+                        Label(type.menuTitle, systemImage: type.menuSystemImage)
+                            .tag(type)
+                    }
+                    if setIndex > 0 {
+                        Label(TemplateSetType.drop.menuTitle, systemImage: TemplateSetType.drop.menuSystemImage)
+                            .tag(TemplateSetType.drop)
+                    }
+                }
+
+                if setIndex == 0 {
+                    Section {
+                        Label(TemplateSetType.drop.menuTitle, systemImage: TemplateSetType.drop.menuSystemImage)
+                            .tag(TemplateSetType.drop)
+                            .disabled(true)
+                    }
+                }
+            } label: {
+                setTypeButton(
+                    setNumber: displayedSetNumber(exerciseIndex: exerciseIndex, setIndex: setIndex),
+                    type: exercises[exerciseIndex].sets[setIndex].type
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(
+                setTypeAccessibilityLabel(
+                    exerciseIndex: exerciseIndex,
+                    for: setIndex,
+                    type: exercises[exerciseIndex].sets[setIndex].type
+                )
+            )
 
             TextField("-", text: $exercises[exerciseIndex].sets[setIndex].weightText)
+                .font(.headline.weight(.semibold))
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.center)
-                .padding(.vertical, 10)
                 .padding(.horizontal, 8)
-                .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                .frame(minHeight: 44)
+                .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 9))
                 .focused($focusedField, equals: .weight(exerciseID, setID))
 
             TextField("-", text: $exercises[exerciseIndex].sets[setIndex].repsText)
+                .font(.headline.weight(.semibold))
                 .keyboardType(.numberPad)
                 .multilineTextAlignment(.center)
-                .padding(.vertical, 10)
                 .padding(.horizontal, 8)
-                .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                .frame(minHeight: 44)
+                .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 9))
                 .focused($focusedField, equals: .reps(exerciseID, setID))
 
             if exercises[exerciseIndex].showsRestTimer {
@@ -378,18 +405,38 @@ struct AddTemplateView: View {
                     presentRestPicker(for: exerciseID, setID: setID)
                 } label: {
                     Text(restTimerFieldLabel(for: exercises[exerciseIndex].sets[setIndex].restSeconds))
-                        .font(.body.weight(.medium))
+                        .font(.headline.weight(.semibold))
                         .foregroundStyle(exercises[exerciseIndex].sets[setIndex].restSeconds == nil ? .secondary : .primary)
-                        .frame(maxWidth: .infinity, minHeight: 42)
+                        .frame(maxWidth: .infinity, minHeight: 44)
                         .padding(.horizontal, 8)
-                        .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                        .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 9))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(restFieldAccessibilityLabel(for: exercises[exerciseIndex].sets[setIndex].restSeconds))
             }
         }
-        .padding(.vertical, 4)
         .contentShape(Rectangle())
+    }
+
+    private func setTypeButton(setNumber: Int, type: TemplateSetType) -> some View {
+        ZStack {
+            Circle()
+                .fill(type.rowBackgroundColor)
+
+            Circle()
+                .stroke(type.rowBorderColor, lineWidth: 1)
+
+            if type == .normal {
+                Text("\(setNumber)")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.primary)
+            } else {
+                Image(systemName: type.rowSystemImage)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(type.rowForegroundColor)
+            }
+        }
+        .frame(width: 40, height: 40)
     }
 
     private func initialsBadge(for exerciseName: String) -> some View {
@@ -397,10 +444,10 @@ struct AddTemplateView: View {
 
         return Circle()
             .fill(Color(.tertiarySystemBackground))
-            .frame(width: 52, height: 52)
+            .frame(width: 44, height: 44)
             .overlay {
                 Text(initials)
-                    .font(.headline.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
     }
@@ -535,6 +582,7 @@ struct AddTemplateView: View {
 
         let removeSet: () -> Void = {
             _ = exercises[exerciseIndex].sets.remove(at: setIndex)
+            normalizeSetTypes(for: exerciseIndex)
         }
 
         if animated {
@@ -569,6 +617,27 @@ struct AddTemplateView: View {
         activeRestPicker = nil
     }
 
+    private func updateSetType(_ type: TemplateSetType, exerciseIndex: Int, setIndex: Int) {
+        exercises[exerciseIndex].sets[setIndex].type = normalizedSetType(type, for: setIndex)
+    }
+
+    private func setTypeBinding(exerciseIndex: Int, setIndex: Int) -> Binding<TemplateSetType> {
+        Binding(
+            get: { exercises[exerciseIndex].sets[setIndex].type },
+            set: { newValue in
+                updateSetType(newValue, exerciseIndex: exerciseIndex, setIndex: setIndex)
+            }
+        )
+    }
+
+    private func normalizeSetTypes(for exerciseIndex: Int) {
+        exercises[exerciseIndex].sets = exercises[exerciseIndex].sets.enumerated().map { setIndex, set in
+            var normalizedSet = set
+            normalizedSet.type = normalizedSetType(set.type, for: setIndex)
+            return normalizedSet
+        }
+    }
+
     private func restTimerLabel(_ seconds: Int?) -> String {
         guard let seconds else { return "Off" }
 
@@ -592,6 +661,14 @@ struct AddTemplateView: View {
 
     private func restFieldAccessibilityLabel(for seconds: Int?) -> String {
         "Rest timer \(restTimerFieldLabel(for: seconds))"
+    }
+
+    private func setTypeAccessibilityLabel(
+        exerciseIndex: Int,
+        for setIndex: Int,
+        type: TemplateSetType
+    ) -> String {
+        "Set \(displayedSetNumber(exerciseIndex: exerciseIndex, setIndex: setIndex)), \(type.menuTitle)"
     }
 
     private var exerciseCount: Int {
@@ -644,6 +721,26 @@ struct AddTemplateView: View {
             showsRestTimer: false,
             sets: [.empty]
         )
+    }
+
+    private func normalizedSetType(_ type: TemplateSetType, for setIndex: Int) -> TemplateSetType {
+        if setIndex == 0, type == .drop {
+            return .normal
+        }
+
+        return type
+    }
+
+    private func displayedSetNumber(exerciseIndex: Int, setIndex: Int) -> Int {
+        let countedSets = exercises[exerciseIndex].sets
+            .prefix(setIndex + 1)
+            .reduce(into: 0) { partialResult, set in
+                if set.type.countsTowardDisplayedSetNumber {
+                    partialResult += 1
+                }
+            }
+
+        return max(countedSets, 1)
     }
 
     private func initials(from name: String) -> String {
@@ -709,6 +806,7 @@ struct AddTemplateView: View {
                     targetRepMin: parsedRepTarget.min,
                     targetRepMax: parsedRepTarget.max,
                     restSeconds: setDraft.restSeconds ?? 0,
+                    typeRawValue: normalizedSetType(setDraft.type, for: setIndex).rawValue,
                     templateExercise: templateExercise
                 )
             }
@@ -853,18 +951,21 @@ private struct TemplateExerciseDraft: Identifiable {
         let sets: [TemplateSetDraft]
 
         if templateExercise.sortedPrescribedSets.isEmpty {
-            sets = (0..<max(templateExercise.targetSets, 1)).map { _ in
+            sets = (0..<max(templateExercise.targetSets, 1)).map { setIndex in
                 TemplateSetDraft(
-                    repsText: templateExercise.displayRepTargetText,
-                    restSeconds: fallbackRestSeconds
+                    repsText: templateExercise.targetReps
+                        .trimmingCharacters(in: .whitespacesAndNewlines),
+                    restSeconds: fallbackRestSeconds,
+                    type: .normal
                 )
             }
         } else {
-            sets = templateExercise.sortedPrescribedSets.map {
+            sets = templateExercise.sortedPrescribedSets.enumerated().map { setIndex, set in
                 TemplateSetDraft(
-                    weightText: $0.displayWeightText,
-                    repsText: $0.displayRepText,
-                    restSeconds: $0.effectiveRestSeconds == 0 ? nil : $0.effectiveRestSeconds
+                    weightText: set.displayWeightText,
+                    repsText: set.displayRepText,
+                    restSeconds: set.effectiveRestSeconds == 0 ? nil : set.effectiveRestSeconds,
+                    type: setIndex == 0 && set.setType == .drop ? .normal : set.setType
                 )
             }
         }
@@ -885,12 +986,20 @@ private struct TemplateSetDraft: Identifiable {
     var weightText: String
     var repsText: String
     var restSeconds: Int?
+    var type: TemplateSetType
 
-    init(id: UUID = UUID(), weightText: String = "", repsText: String = "", restSeconds: Int? = nil) {
+    init(
+        id: UUID = UUID(),
+        weightText: String = "",
+        repsText: String = "",
+        restSeconds: Int? = nil,
+        type: TemplateSetType = .normal
+    ) {
         self.id = id
         self.weightText = weightText
         self.repsText = repsText
         self.restSeconds = restSeconds
+        self.type = type
     }
 
     static var empty: TemplateSetDraft {
@@ -928,7 +1037,7 @@ private enum InsertExerciseDirection: String {
 
 #Preview {
     NavigationStack {
-        AddTemplateView()
+        AddTemplateView(template: AddTemplateViewPreview.sampleTemplate)
     }
     .modelContainer(AddTemplateViewPreview.container)
 }
@@ -946,4 +1055,151 @@ private enum AddTemplateViewPreview {
         try! SeedData.seedIfNeeded(in: container.mainContext)
         return container
     }()
+
+    static let sampleTemplate: WorkoutTemplate = {
+        let context = container.mainContext
+        let descriptor = FetchDescriptor<Exercise>(sortBy: [SortDescriptor(\.name)])
+        let exercises = try! context.fetch(descriptor)
+        let previewExercises = Array(exercises.prefix(2))
+
+        let template = WorkoutTemplate(name: "Leg Day")
+        context.insert(template)
+
+        template.exercises = previewExercises.enumerated().map { index, exercise in
+            let templateExercise = TemplateExercise(
+                position: index + 1,
+                targetSets: 3,
+                targetReps: index == 0 ? "8" : "10",
+                restSeconds: index == 0 ? 90 : 75,
+                notes: index == 0 ? "Controlled eccentric" : "",
+                template: template,
+                exercise: exercise
+            )
+
+            templateExercise.prescribedSets = [
+                TemplateExerciseSet(
+                    position: 1,
+                    prescribedWeight: index == 0 ? 60 : 140,
+                    targetReps: index == 0 ? 8 : 10,
+                    restSeconds: index == 0 ? 90 : 75,
+                    typeRawValue: TemplateSetType.normal.rawValue,
+                    templateExercise: templateExercise
+                ),
+                TemplateExerciseSet(
+                    position: 2,
+                    prescribedWeight: index == 0 ? 60 : 140,
+                    targetReps: index == 0 ? 8 : 10,
+                    restSeconds: index == 0 ? 90 : 75,
+                    typeRawValue: index == 0 ? TemplateSetType.warmUp.rawValue : TemplateSetType.failure.rawValue,
+                    templateExercise: templateExercise
+                ),
+                TemplateExerciseSet(
+                    position: 3,
+                    prescribedWeight: index == 0 ? 62.5 : 145,
+                    targetReps: index == 0 ? 8 : 8,
+                    restSeconds: index == 0 ? 90 : 75,
+                    typeRawValue: TemplateSetType.normal.rawValue,
+                    templateExercise: templateExercise
+                )
+            ]
+
+            context.insert(templateExercise)
+            templateExercise.prescribedSets.forEach(context.insert)
+            return templateExercise
+        }
+
+        try! context.save()
+        return template
+    }()
+}
+
+private extension TemplateSetType {
+    static let menuPrimaryCases: [TemplateSetType] = [.normal, .warmUp, .failure]
+
+    var countsTowardDisplayedSetNumber: Bool {
+        switch self {
+        case .normal, .failure:
+            true
+        case .warmUp, .drop:
+            false
+        }
+    }
+
+    var menuTitle: String {
+        switch self {
+        case .normal:
+            "Normal"
+        case .warmUp:
+            "Warm Up"
+        case .failure:
+            "Failure"
+        case .drop:
+            "Dropset"
+        }
+    }
+
+    var menuSystemImage: String {
+        switch self {
+        case .normal:
+            "circle"
+        case .warmUp:
+            "flame.fill"
+        case .failure:
+            "exclamationmark.triangle"
+        case .drop:
+            "arrow.down.circle"
+        }
+    }
+
+    var rowSystemImage: String {
+        switch self {
+        case .normal:
+            "circle"
+        case .warmUp:
+            "flame.fill"
+        case .failure:
+            "exclamationmark.triangle.fill"
+        case .drop:
+            "arrow.down"
+        }
+    }
+
+    var rowForegroundColor: Color {
+        switch self {
+        case .normal:
+            .primary
+        case .warmUp:
+            .orange
+        case .failure:
+            .red
+        case .drop:
+            .blue
+        }
+    }
+
+    var rowBackgroundColor: Color {
+        switch self {
+        case .normal:
+            Color(.tertiarySystemBackground)
+        case .warmUp:
+            .orange.opacity(0.14)
+        case .failure:
+            .red.opacity(0.14)
+        case .drop:
+            .blue.opacity(0.14)
+        }
+    }
+
+    var rowBorderColor: Color {
+        switch self {
+        case .normal:
+            Color.secondary.opacity(0.18)
+        case .warmUp:
+            .orange.opacity(0.32)
+        case .failure:
+            .red.opacity(0.32)
+        case .drop:
+            .blue.opacity(0.32)
+        }
+    }
 }

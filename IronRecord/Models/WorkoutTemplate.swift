@@ -71,6 +71,7 @@ final class TemplateExerciseSet: Identifiable {
     var targetRepMin: Int?
     var targetRepMax: Int?
     var restSeconds: Int
+    var typeRawValue: String
 
     var templateExercise: TemplateExercise?
 
@@ -81,6 +82,7 @@ final class TemplateExerciseSet: Identifiable {
         targetRepMin: Int? = nil,
         targetRepMax: Int? = nil,
         restSeconds: Int = 0,
+        typeRawValue: String = TemplateSetType.normal.rawValue,
         templateExercise: TemplateExercise? = nil
     ) {
         self.position = position
@@ -89,8 +91,16 @@ final class TemplateExerciseSet: Identifiable {
         self.targetRepMin = targetRepMin
         self.targetRepMax = targetRepMax
         self.restSeconds = restSeconds
+        self.typeRawValue = typeRawValue
         self.templateExercise = templateExercise
     }
+}
+
+enum TemplateSetType: String, CaseIterable, Codable {
+    case normal
+    case warmUp = "warm_up"
+    case failure
+    case drop
 }
 
 extension TemplateExercise {
@@ -141,6 +151,11 @@ extension WorkoutTemplate {
 }
 
 extension TemplateExerciseSet {
+    var setType: TemplateSetType {
+        get { TemplateSetType(rawValue: typeRawValue) ?? .normal }
+        set { typeRawValue = newValue.rawValue }
+    }
+
     var displayWeightText: String {
         guard let prescribedWeight else {
             return ""
