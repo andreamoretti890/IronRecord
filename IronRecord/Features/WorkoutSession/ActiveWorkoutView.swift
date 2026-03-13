@@ -202,18 +202,24 @@ private enum ActiveWorkoutPreview {
 
 private struct ActiveWorkoutPreviewHost: View {
     @State private var isPresented = true
+    @State private var session: WorkoutSession?
 
     var body: some View {
         NavigationStack {
             Color(.systemGroupedBackground)
                 .sheet(isPresented: $isPresented) {
                     NavigationStack {
-                        if let session = ActiveWorkoutPreview.makeSession() {
+                        if let session {
                             ActiveWorkoutView(session: session)
                         }
                     }
                     .interactiveDismissDisabled()
                 }
+        }
+        .onAppear {
+            if session == nil {
+                session = ActiveWorkoutPreview.makeSession()
+            }
         }
     }
 }

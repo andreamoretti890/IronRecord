@@ -156,9 +156,17 @@ private extension SeedData {
             existingSets.count == seed.setSeeds.count &&
             existingSets.allSatisfy { $0.setType == .normal && $0.prescribedWeight == nil }
 
-        entry.targetSets = seed.targetSets
-        entry.targetReps = seed.targetReps
-        entry.restSeconds = seed.restSeconds
+        if entry.targetSets == 0 {
+            entry.targetSets = seed.targetSets
+        }
+
+        if entry.targetReps.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            entry.targetReps = seed.targetReps
+        }
+
+        if entry.restSeconds == 0 {
+            entry.restSeconds = seed.restSeconds
+        }
 
         for (index, setSeed) in seed.setSeeds.enumerated() {
             let position = index + 1
