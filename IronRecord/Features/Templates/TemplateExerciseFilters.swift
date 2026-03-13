@@ -1,11 +1,25 @@
 import Foundation
+import SwiftData
 
 struct ExercisePickerItem: Identifiable, Hashable {
-    let id: String
+    let id: PersistentIdentifier
     let name: String
-    let bodyPart: ExerciseBodyPart
+    let primaryBodyParts: [ExerciseBodyPart]
+    let secondaryBodyParts: [ExerciseBodyPart]
     let equipment: ExerciseEquipment
     let mode: ExerciseMode
+    let source: ExercisePickerSource
+
+    var allBodyParts: [ExerciseBodyPart] {
+        ExerciseBodyPart.filterOrder.filter { bodyPart in
+            primaryBodyParts.contains(bodyPart) || secondaryBodyParts.contains(bodyPart)
+        }
+    }
+}
+
+enum ExercisePickerSource: Hashable {
+    case catalog
+    case custom
 }
 
 struct FilterOption: Identifiable {
@@ -38,30 +52,29 @@ enum ExerciseFilterPicker: String, Identifiable {
 }
 
 enum ExerciseEquipment: String, CaseIterable, Identifiable {
+    case band = "Band"
     case barbell = "Barbell"
-    case dumbbell = "Dumbbell"
-    case machine = "Machine"
-    case cable = "Cable"
-    case weightedBodyweight = "Weighted Bodyweight"
-    case assistedBodyweight = "Assisted Bodyweight"
+    case cableDouble = "Cable (Double)"
+    case cableSingle = "Cable (Single)"
+    case dumbellDouble = "Dumbell (Double)"
+    case dumbellSingle = "Dumbell (Single)"
+    case ezBar = "EZ Bar"
     case bodyweight = "Bodyweight"
     case cardio = "Cardio"
+    case kettlebellDouble = "Kettlebell (Double)"
+    case kettlebellSingle = "Kettlebell (Single)"
+    case machine = "Machine"
+    case machineAssisted = "Machine Assisted"
     case other = "Other"
+    case rope = "Rope"
+    case smithMachine = "Smith Machine"
+    case trx = "TRX"
+    case weightedBall = "Weighted Ball"
 
     var id: String { rawValue }
 
     static var filterOrder: [ExerciseEquipment] {
-        [
-            .barbell,
-            .dumbbell,
-            .machine,
-            .cable,
-            .weightedBodyweight,
-            .assistedBodyweight,
-            .bodyweight,
-            .cardio,
-            .other
-        ]
+        allCases.sorted { $0.rawValue < $1.rawValue }
     }
 
     static func infer(equipment: String, exerciseName: String) -> ExerciseEquipment {
@@ -73,26 +86,80 @@ enum ExerciseEquipment: String, CaseIterable, Identifiable {
         let tokenSet = tokens(combined)
 
         if containsAny(tokenSet, cardioTokens) { return .cardio }
-        if combined.contains("weighted bodyweight") { return .weightedBodyweight }
-        if combined.contains("assisted bodyweight") { return .assistedBodyweight }
+        if combined.contains("machine assisted") || combined.contains("assisted machine") {
+            return .machineAssisted
+        }
+        if combined.contains("smith machine") {
+            return .smithMachine
+        }
+        if combined.contains("ez bar") || combined.contains("ezbar") || combined.contains("curl bar") {
+            return .ezBar
+        }
+        if combined.contains("weighted ball") || combined.contains("medicine ball") || combined.contains("med ball") || combined.contains("slam ball") {
+            return .weightedBall
+        }
+        if containsAny(tokenSet, ["trx"]) { return .trx }
+        if containsAny(tokenSet, ["rope"]) { return .rope }
+        if containsAny(tokenSet, ["band", "bands"]) || combined.contains("resistance band") {
+            return .band
+        }
+        if combined.contains("double kettlebell") || combined.contains("double kb") {
+            return .kettlebellDouble
+        }
+        if combined.contains("single kettlebell") || combined.contains("single kb") {
+            return .kettlebellSingle
+        }
+        if containsAny(tokenSet, ["kettlebell", "kettlebells", "kb"]) {
+            return .kettlebellSingle
+        }
         if combined.contains("bodyweight") || combined.contains("pull up") { return .bodyweight }
         if containsAny(tokenSet, ["barbell"]) { return .barbell }
-        if containsAny(tokenSet, ["dumbbell"]) { return .dumbbell }
+        if containsAny(tokenSet, ["dumbbell", "dumbell"]) {
+            return combined.contains("single") ? .dumbellSingle : .dumbellDouble
+        }
         if containsAny(tokenSet, ["machine"]) || combined.contains("leg press") { return .machine }
-        if containsAny(tokenSet, ["cable"]) { return .cable }
+        if containsAny(tokenSet, ["cable"]) {
+            return combined.contains("single") ? .cableSingle : .cableDouble
+        }
 
         return .other
     }
 
     private static let exactEquipmentMap: [String: ExerciseEquipment] = [
+        "band": .band,
         "barbell": .barbell,
-        "dumbbell": .dumbbell,
+        "cable": .cableDouble,
+        "cable double": .cableDouble,
+        "double cable": .cableDouble,
+        "cable single": .cableSingle,
+        "single cable": .cableSingle,
+        "dumbbell": .dumbellDouble,
+        "dumbell": .dumbellDouble,
+        "dumbbell double": .dumbellDouble,
+        "dumbell double": .dumbellDouble,
+        "double dumbbell": .dumbellDouble,
+        "double dumbell": .dumbellDouble,
+        "dumbbell single": .dumbellSingle,
+        "dumbell single": .dumbellSingle,
+        "single dumbbell": .dumbellSingle,
+        "single dumbell": .dumbellSingle,
+        "ez bar": .ezBar,
+        "ezbar": .ezBar,
+        "curl bar": .ezBar,
+        "kettlebell": .kettlebellSingle,
+        "single kettlebell": .kettlebellSingle,
+        "kettlebell single": .kettlebellSingle,
+        "double kettlebell": .kettlebellDouble,
+        "kettlebell double": .kettlebellDouble,
         "machine": .machine,
-        "cable": .cable,
-        "weighted bodyweight": .weightedBodyweight,
-        "assisted bodyweight": .assistedBodyweight,
+        "machine assisted": .machineAssisted,
         "bodyweight": .bodyweight,
-        "cardio": .cardio
+        "cardio": .cardio,
+        "rope": .rope,
+        "smith machine": .smithMachine,
+        "trx": .trx,
+        "weighted ball": .weightedBall,
+        "medicine ball": .weightedBall
     ]
 }
 
@@ -120,9 +187,11 @@ enum ExerciseMode: String, CaseIterable, Identifiable {
         switch inferredEquipment {
         case .cardio:
             return .cardioDuration
-        case .barbell, .dumbbell, .machine, .cable, .weightedBodyweight:
+        case .band, .barbell, .cableDouble, .cableSingle, .dumbellDouble, .dumbellSingle,
+             .ezBar, .kettlebellDouble, .kettlebellSingle, .machine, .machineAssisted,
+             .rope, .smithMachine, .trx, .weightedBall:
             return .weightedReps
-        case .assistedBodyweight, .bodyweight:
+        case .bodyweight:
             return .repsOnly
         case .other:
             break
@@ -138,49 +207,36 @@ enum ExerciseMode: String, CaseIterable, Identifiable {
     }
 }
 
-enum ExerciseBodyPart: String, CaseIterable, Identifiable {
-    case core = "Core"
-    case chest = "Chest"
-    case back = "Back"
-    case shoulders = "Shoulders"
-    case neck = "Neck"
-    case traps = "Traps"
-    case biceps = "Biceps"
-    case triceps = "Triceps"
-    case forearms = "Forearms"
-    case quadriceps = "Quadriceps"
-    case hamstrings = "Hamstrings"
-    case glutes = "Glutes"
+enum ExerciseBodyPart: String, CaseIterable, Identifiable, Codable {
+    case abs = "Abs"
     case abductors = "Abductors"
     case adductors = "Adductors"
+    case biceps = "Biceps"
     case calves = "Calves"
-    case fullBody = "Full Body"
     case cardio = "Cardio"
+    case chest = "Chest"
+    case forearms = "Forearms"
+    case glutes = "Glutes"
+    case hamstrings = "Hamstrings"
+    case hipFlexors = "Hip Flexors"
+    case lats = "Lats"
+    case lowerBack = "Lower Back"
+    case middleBack = "Middle Back"
+    case neck = "Neck"
+    case obliques = "Obliques"
+    case fullBody = "Full Body"
     case others = "Others"
+    case quads = "Quads"
+    case rotatorCuff = "Rotator Cuff"
+    case shoulders = "Shoulders"
+    case traps = "Traps"
+    case triceps = "Triceps"
+    case upperBack = "Upper Back"
 
     var id: String { rawValue }
 
     static var filterOrder: [ExerciseBodyPart] {
-        [
-            .core,
-            .chest,
-            .back,
-            .shoulders,
-            .neck,
-            .traps,
-            .biceps,
-            .triceps,
-            .forearms,
-            .quadriceps,
-            .hamstrings,
-            .glutes,
-            .abductors,
-            .adductors,
-            .calves,
-            .fullBody,
-            .cardio,
-            .others
-        ]
+        allCases.sorted { $0.rawValue < $1.rawValue }
     }
 
     static func fromStoredValue(_ rawValue: String) -> ExerciseBodyPart {
@@ -202,25 +258,35 @@ enum ExerciseBodyPart: String, CaseIterable, Identifiable {
     }
 
     private static let exactStoredValueMap: [String: ExerciseBodyPart] = [
-        "core": .core,
-        "chest": .chest,
-        "back": .back,
-        "upper back": .traps,
-        "shoulders": .shoulders,
-        "neck": .neck,
-        "traps": .traps,
-        "biceps": .biceps,
-        "triceps": .triceps,
-        "forearms": .forearms,
-        "quadriceps": .quadriceps,
-        "quads": .quadriceps,
-        "hamstrings": .hamstrings,
-        "glutes": .glutes,
+        "abs": .abs,
+        "core": .abs,
+        "abdominals": .abs,
         "abductors": .abductors,
         "adductors": .adductors,
+        "biceps": .biceps,
         "calves": .calves,
-        "full body": .fullBody,
         "cardio": .cardio,
+        "chest": .chest,
+        "forearms": .forearms,
+        "glutes": .glutes,
+        "hamstrings": .hamstrings,
+        "hip flexors": .hipFlexors,
+        "lats": .lats,
+        "latissimus dorsi": .lats,
+        "lower back": .lowerBack,
+        "middle back": .middleBack,
+        "mid back": .middleBack,
+        "neck": .neck,
+        "obliques": .obliques,
+        "full body": .fullBody,
+        "quadriceps": .quads,
+        "quads": .quads,
+        "rotator cuff": .rotatorCuff,
+        "shoulders": .shoulders,
+        "traps": .traps,
+        "triceps": .triceps,
+        "upper back": .upperBack,
+        "back": .middleBack,
         // Keep these generic buckets intentionally unresolved to avoid
         // forcing broad labels when we can infer more specific parts from name.
         "arms": .others,
@@ -228,28 +294,28 @@ enum ExerciseBodyPart: String, CaseIterable, Identifiable {
     ]
 
     private static let exactExerciseNameMap: [String: ExerciseBodyPart] = [
-        "back squat": .quadriceps,
+        "back squat": .quads,
         "barbell bench press": .chest,
         "barbell overhead press": .shoulders,
-        "barbell row": .back,
+        "barbell row": .middleBack,
         "cable lateral raise": .shoulders,
-        "chest supported row": .back,
-        "conventional deadlift": .back,
+        "chest supported row": .middleBack,
+        "conventional deadlift": .lowerBack,
         "dumbbell biceps curl": .biceps,
-        "face pull": .traps,
-        "front squat": .quadriceps,
-        "hack squat": .quadriceps,
+        "face pull": .upperBack,
+        "front squat": .quads,
+        "hack squat": .quads,
         "hammer curl": .forearms,
         "hip thrust": .glutes,
         "incline dumbbell press": .chest,
-        "lat pulldown": .back,
-        "leg extension": .quadriceps,
-        "leg press": .quadriceps,
+        "lat pulldown": .lats,
+        "leg extension": .quads,
+        "leg press": .quads,
         "lying leg curl": .hamstrings,
         "machine chest press": .chest,
-        "pull up": .back,
+        "pull up": .lats,
         "romanian deadlift": .hamstrings,
-        "seated cable row": .back,
+        "seated cable row": .middleBack,
         "seated dumbbell shoulder press": .shoulders,
         "standing calf raise": .calves,
         "triceps rope pushdown": .triceps
@@ -264,6 +330,27 @@ private let cardioTokens: Set<String> = [
     "erg",
     "treadmill"
 ]
+
+@MainActor
+extension Exercise {
+    var pickerItem: ExercisePickerItem {
+        ExercisePickerItem(
+            id: persistentModelID,
+            name: name,
+            primaryBodyParts: primaryBodyParts,
+            secondaryBodyParts: secondaryBodyParts,
+            equipment: ExerciseEquipment.infer(
+                equipment: equipment,
+                exerciseName: name
+            ),
+            mode: ExerciseMode.infer(
+                equipment: equipment,
+                exerciseName: name
+            ),
+            source: category == "Custom" ? .custom : .catalog
+        )
+    }
+}
 
 private func normalized(_ value: String) -> String {
     tokens(value).joined(separator: " ")

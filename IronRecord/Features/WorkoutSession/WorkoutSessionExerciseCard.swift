@@ -160,24 +160,11 @@ struct WorkoutSessionExerciseCard: View {
     }
 
     private var selectableExercises: [ExercisePickerItem] {
-        availableExercises.map { exercise in
-            ExercisePickerItem(
-                id: exercise.name,
-                name: exercise.name,
-                bodyPart: ExerciseBodyPart.fromExercise(
-                    name: exercise.name,
-                    storedBodyPart: exercise.bodyPart
-                ),
-                equipment: ExerciseEquipment.infer(
-                    equipment: exercise.equipment,
-                    exerciseName: exercise.name
-                ),
-                mode: ExerciseMode.infer(
-                    equipment: exercise.equipment,
-                    exerciseName: exercise.name
-                )
-            )
-        }
+        availableExercises.map(\.pickerItem)
+    }
+
+    private func sourceExercise(for exerciseID: PersistentIdentifier) -> Exercise? {
+        availableExercises.first { $0.persistentModelID == exerciseID }
     }
 
     private var notesBinding: Binding<String> {
@@ -226,7 +213,7 @@ struct WorkoutSessionExerciseCard: View {
         }
 
         exercise.exerciseName = selectedExercise.name
-        exercise.sourceExercise = availableExercises.first(where: { $0.name == selectedExercise.id })
+        exercise.sourceExercise = sourceExercise(for: selectedExercise.id)
         onSave()
         activeReplacePicker = nil
     }
@@ -257,7 +244,7 @@ struct WorkoutSessionExerciseCard: View {
             sessionExercise.position += 1
         }
 
-        let sourceExercise = availableExercises.first(where: { $0.name == selectedExercise.id })
+        let sourceExercise = sourceExercise(for: selectedExercise.id)
         let insertedExercise = WorkoutSessionExercise(
             position: insertionPosition,
             exerciseName: selectedExercise.name,
