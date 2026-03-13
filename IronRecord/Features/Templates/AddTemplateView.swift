@@ -29,7 +29,7 @@ struct AddTemplateView: View {
         if savesAsNewTemplate, let template {
             initialTitle = "\(template.name) (copy)"
         } else {
-            initialTitle = template?.name ?? ""
+            initialTitle = template?.name ?? "New Workout"
         }
 
         _title = State(initialValue: initialTitle)
@@ -39,21 +39,30 @@ struct AddTemplateView: View {
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 14) {
-                titleCard
-
-                if exercises.isEmpty {
-                    emptyExercisesCard
+        Group {
+            if exercises.isEmpty {
+                VStack(alignment: .leading, spacing: 24) {
+                    titleCard
+                    Spacer(minLength: 0)
+                    emptyExercisesView
+                    Spacer(minLength: 0)
                 }
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 14) {
+                        titleCard
 
-                ForEach(Array(exercises.enumerated()), id: \.element.id) { index, exercise in
-                    exerciseCard(exerciseIndex: index, exercise: exercise)
+                        ForEach(exercises.enumerated(), id: \.element.id) { index, exercise in
+                            exerciseCard(exerciseIndex: index, exercise: exercise)
+                        }
+
+                        addExerciseLink
+                    }
+                    .padding(.vertical, 12)
                 }
-
-                addExerciseLink
             }
-            .padding(.vertical, 12)
         }
         .scrollDismissesKeyboard(.interactively)
         .background {
@@ -148,7 +157,7 @@ struct AddTemplateView: View {
 
     private var titleCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TextField("Template title", text: $title)
+            TextField("Template name", text: $title)
                 .textInputAutocapitalization(.words)
                 .autocorrectionDisabled()
                 .font(.title2.bold())
@@ -162,16 +171,15 @@ struct AddTemplateView: View {
         .padding(.horizontal, 16)
     }
 
-    private var emptyExercisesCard: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("No exercises yet")
-                .font(.headline)
-            Text("Tap Add exercise to start building this template.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+    private var emptyExercisesView: some View {
+        ContentUnavailableView {
+            Label("No Exercises Added", systemImage: "dumbbell")
+        } description: {
+            Text("Tap Add Exercises to start building this template.")
+        } actions: {
+            addExerciseLink
         }
-        .padding(.horizontal, 16)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity)
     }
 
     private var addExerciseLink: some View {
@@ -184,15 +192,11 @@ struct AddTemplateView: View {
                 }
             )
         } label: {
-            Label("Add exercise", systemImage: "plus")
-                .font(.headline)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .foregroundStyle(.white)
-                .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 16))
-                .contentShape(Rectangle())
+            Label("Add Exercises", systemImage: "plus")
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.capsule)
+        .controlSize(.large)
         .padding(.horizontal, 16)
     }
 
@@ -406,11 +410,6 @@ struct AddTemplateView: View {
     private var canSave: Bool {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         return !trimmedTitle.isEmpty && !exercises.isEmpty
-    }
-
-    private var isDraftEmpty: Bool {
-        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedTitle.isEmpty && exercises.isEmpty
     }
 
     private var isShowingError: Binding<Bool> {
@@ -801,7 +800,7 @@ struct AddTemplateView: View {
     }
 
     private func cancelTapped() {
-        if isDraftEmpty {
+        if exercises.isEmpty {
             dismiss()
         } else {
             isShowingDiscardAlert = true
@@ -937,13 +936,26 @@ private enum InsertExerciseDirection: String {
     case below
 }
 
-#Preview {
-    AddTemplatePreviewHost()
-        .modelContainer(AddTemplateViewPreview.container)
+#Preview("Filled Template") {
+    AddTemplateSheetPreview(template: AddTemplateViewPreview.sampleTemplate)
+    .modelContainer(AddTemplateViewPreview.filledContainer)
+}
+
+#Preview("Empty Template") {
+    AddTemplateSheetPreview()
+    .modelContainer(AddTemplateViewPreview.emptyContainer)
 }
 
 private enum AddTemplateViewPreview {
-    static let container: ModelContainer = {
+    static let filledContainer = makeContainer(includeSampleTemplate: true)
+    static let emptyContainer = makeContainer(includeSampleTemplate: false)
+
+    static var sampleTemplate: WorkoutTemplate {
+        let descriptor = FetchDescriptor<WorkoutTemplate>(sortBy: [SortDescriptor(\.createdAt)])
+        return try! filledContainer.mainContext.fetch(descriptor).first!
+    }
+
+    private static func makeContainer(includeSampleTemplate: Bool) -> ModelContainer {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try! ModelContainer(
             for: Exercise.self,
@@ -952,12 +964,13 @@ private enum AddTemplateViewPreview {
             TemplateExerciseSet.self,
             configurations: configuration
         )
-        try! SeedData.seedIfNeeded(in: container.mainContext)
-        return container
-    }()
-
-    static let sampleTemplate: WorkoutTemplate = {
         let context = container.mainContext
+        try! SeedData.seedIfNeeded(in: context)
+
+        guard includeSampleTemplate else {
+            return container
+        }
+
         let descriptor = FetchDescriptor<Exercise>(sortBy: [SortDescriptor(\.name)])
         let exercises = try! context.fetch(descriptor)
         let previewExercises = Array(exercises.prefix(2))
@@ -1009,22 +1022,25 @@ private enum AddTemplateViewPreview {
         }
 
         try! context.save()
-        return template
-    }()
+        return container
+    }
 }
 
-private struct AddTemplatePreviewHost: View {
+private struct AddTemplateSheetPreview: View {
+    let template: WorkoutTemplate?
+
     @State private var isPresented = true
 
+    init(template: WorkoutTemplate? = nil) {
+        self.template = template
+    }
+
     var body: some View {
-        NavigationStack {
-            Color(.systemGroupedBackground)
-                .sheet(isPresented: $isPresented) {
-                    NavigationStack {
-                        AddTemplateView(template: AddTemplateViewPreview.sampleTemplate)
-                    }
-                    .interactiveDismissDisabled()
+        Color(.systemGroupedBackground)
+            .sheet(isPresented: $isPresented) {
+                NavigationStack {
+                    AddTemplateView(template: template)
                 }
-        }
+            }
     }
 }
