@@ -5,15 +5,25 @@ struct TemplatesView: View {
     @Environment(\.modelContext) private var modelContext
 
     @Query(sort: \WorkoutTemplate.createdAt) private var templates: [WorkoutTemplate]
+    @Query(sort: \WorkoutSession.startedAt, order: .reverse) private var workoutSessions: [WorkoutSession]
 
     @State private var templatePendingDeletion: WorkoutTemplate?
     @State private var templateBeingEdited: WorkoutTemplate?
     @State private var templateBeingDuplicated: WorkoutTemplate?
+    @State private var templatePendingStart: WorkoutTemplate?
     @State private var isAddTemplatePresented = false
+    @State private var presentedSession: WorkoutSession?
     @State private var errorMessage: String?
 
     var body: some View {
         List {
+            if let activeSession {
+                resumeWorkoutCard(for: activeSession)
+                    .listRowInsets(.init(top: 8, leading: 16, bottom: 10, trailing: 16))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            }
+
             if templates.isEmpty {
                 ContentUnavailableView(
                     "No Templates",
@@ -34,6 +44,9 @@ struct TemplatesView: View {
                         },
                         onDeleteTapped: {
                             templatePendingDeletion = template
+                        },
+                        onStartTapped: {
+                            startTemplate(template)
                         }
                     )
                     .listRowInsets(.init(top: 6, leading: 16, bottom: 6, trailing: 16))
@@ -57,19 +70,40 @@ struct TemplatesView: View {
             NavigationStack {
                 AddTemplateView()
             }
-            .interactiveDismissDisabled()
         }
         .sheet(item: $templateBeingEdited) { template in
             NavigationStack {
                 AddTemplateView(template: template)
             }
-            .interactiveDismissDisabled()
         }
         .sheet(item: $templateBeingDuplicated) { template in
             NavigationStack {
                 AddTemplateView(template: template, savesAsNewTemplate: true)
             }
-            .interactiveDismissDisabled()
+        }
+        .sheet(item: $presentedSession) { session in
+            NavigationStack {
+                ActiveWorkoutView(session: session)
+            }
+        }
+        .confirmationDialog(
+            "Workout in Progress",
+            isPresented: isShowingWorkoutConflict,
+            presenting: activeSession
+        ) { session in
+            Button("Resume Workout") {
+                presentedSession = session
+            }
+
+            Button("Discard and Start New", role: .destructive) {
+                discardActiveSessionAndStartPendingTemplate(session)
+            }
+
+            Button("Cancel", role: .cancel) {
+                templatePendingStart = nil
+            }
+        } message: { session in
+            Text("\"\(session.templateName)\" is still in progress.")
         }
         .alert(
             "Delete Template",
@@ -92,12 +126,27 @@ struct TemplatesView: View {
         }
     }
 
+    private var activeSession: WorkoutSession? {
+        workoutSessions.first { $0.isInProgress }
+    }
+
     private var isShowingDeleteAlert: Binding<Bool> {
         Binding(
             get: { templatePendingDeletion != nil },
             set: { isPresented in
                 if !isPresented {
                     templatePendingDeletion = nil
+                }
+            }
+        )
+    }
+
+    private var isShowingWorkoutConflict: Binding<Bool> {
+        Binding(
+            get: { templatePendingStart != nil && activeSession != nil },
+            set: { isPresented in
+                if !isPresented {
+                    templatePendingStart = nil
                 }
             }
         )
@@ -114,6 +163,63 @@ struct TemplatesView: View {
         )
     }
 
+    private func resumeWorkoutCard(for session: WorkoutSession) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Workout in Progress", systemImage: "figure.strengthtraining.traditional")
+                .font(.headline)
+
+            Text(session.templateName)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Button("Resume Workout") {
+                presentedSession = session
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(14)
+        .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func startTemplate(_ template: WorkoutTemplate) {
+        if activeSession != nil {
+            templatePendingStart = template
+            presentedSession = nil
+            return
+        }
+
+        createSessionAndNavigate(from: template)
+    }
+
+    private func discardActiveSessionAndStartPendingTemplate(_ activeSession: WorkoutSession) {
+        let template = templatePendingStart
+        templatePendingStart = nil
+        modelContext.delete(activeSession)
+
+        do {
+            try modelContext.save()
+        } catch {
+            errorMessage = error.localizedDescription
+            return
+        }
+
+        if let template {
+            createSessionAndNavigate(from: template)
+        }
+    }
+
+    private func createSessionAndNavigate(from template: WorkoutTemplate) {
+        let session = WorkoutSession.make(from: template)
+        modelContext.insert(session)
+
+        do {
+            try modelContext.save()
+            presentedSession = session
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     private func deleteTemplate(_ template: WorkoutTemplate) {
         modelContext.delete(template)
         templatePendingDeletion = nil
@@ -127,23 +233,22 @@ struct TemplatesView: View {
 }
 
 #Preview {
-    NavigationStack {
-        TemplatesView()
-            .modelContainer(TemplatesPreview.container)
-    }
+    TemplatesPreviewHost()
+        .modelContainer(TemplatesPreview.container)
 }
 
 private enum TemplatesPreview {
     static let container: ModelContainer = {
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try! ModelContainer(
-            for: Exercise.self,
-            WorkoutTemplate.self,
-            TemplateExercise.self,
-            TemplateExerciseSet.self,
-            configurations: configuration
-        )
+        let container = IronRecordModelContainer.makeContainer(inMemory: true)
         try! SeedData.seedIfNeeded(in: container.mainContext)
         return container
     }()
+}
+
+private struct TemplatesPreviewHost: View {
+    var body: some View {
+        NavigationStack {
+            TemplatesView()
+        }
+    }
 }

@@ -197,84 +197,57 @@ struct AddTemplateView: View {
     }
 
     private func exerciseCard(exerciseIndex: Int, exercise: TemplateExerciseDraft) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 10) {
-                initialsBadge(for: exercise.name)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(exercise.name)
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(.tint)
-
-                    if let equipmentText = exerciseEquipmentText(for: exercise) {
-                        Text(equipmentText)
-                            .font(.footnote)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.secondary)
-                    }
+        ExerciseCard(
+            title: exercise.name,
+            equipmentText: exerciseEquipmentText(for: exercise),
+            horizontalPadding: 20,
+            tableStyle: .template(showsRestTimer: exercise.showsRestTimer),
+            showsRestTimerControl: true,
+            isRestTimerActive: exercise.showsRestTimer,
+            onToggleRestTimer: {
+                withAnimation(.snappy(duration: 0.22, extraBounce: 0)) {
+                    exercises[exerciseIndex].showsRestTimer.toggle()
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                Button {
-                    withAnimation(.snappy(duration: 0.22, extraBounce: 0)) {
-                        exercises[exerciseIndex].showsRestTimer.toggle()
-                    }
-                } label: {
-                    Image(systemName: "timer")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(exercise.showsRestTimer ? Color.accentColor : .secondary)
-                        .frame(width: 36, height: 36)
-                        .background(
-                            (exercise.showsRestTimer ? Color.accentColor.opacity(0.14) : Color(.tertiarySystemBackground)),
-                            in: RoundedRectangle(cornerRadius: 10)
-                        )
+            },
+            showsMenu: true,
+            addSetTitle: "Add Set",
+            onAddSet: {
+                withAnimation(.snappy(duration: 0.22, extraBounce: 0)) {
+                    addSet(to: exercise.id)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(exercise.showsRestTimer ? "Hide rest timers" : "Show rest timers")
-
-                Menu {
-                    Button(exercise.notes.isEmpty && !exercise.notesVisible ? "Add Notes" : "Edit Notes", systemImage: "note.text") {
-                        exercises[exerciseIndex].notesVisible = true
-                    }
-
-                    Button("Replace", systemImage: "arrow.triangle.2.circlepath") {
-                        activeReplacePicker = ReplaceExerciseContext(id: exercise.id)
-                    }
-                    Button("Reorder", systemImage: "line.3.horizontal") { }
-                    Button("Create superset", systemImage: "link") { }
-
-                    Divider()
-
-                    Button("Add exercise above", systemImage: "arrow.up") {
-                        activeInsertPicker = InsertExerciseContext(
-                            targetExerciseID: exercise.id,
-                            direction: .above
-                        )
-                    }
-                    Button("Add exercise below", systemImage: "arrow.down") {
-                        activeInsertPicker = InsertExerciseContext(
-                            targetExerciseID: exercise.id,
-                            direction: .below
-                        )
-                    }
-
-                    Divider()
-
-                    Button("Delete Exercise", systemImage: "trash", role: .destructive) {
-                        deleteExercise(exercise.id)
-                    }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(width: 36, height: 36)
-                        .background(
-                            Color(.tertiarySystemBackground),
-                            in: RoundedRectangle(cornerRadius: 10)
-                        )
-                }
-                .buttonStyle(.plain)
+            }
+        ) {
+            Button(exercise.notes.isEmpty && !exercise.notesVisible ? "Add Notes" : "Edit Notes", systemImage: "note.text") {
+                exercises[exerciseIndex].notesVisible = true
             }
 
+            Button("Replace", systemImage: "arrow.triangle.2.circlepath") {
+                activeReplacePicker = ReplaceExerciseContext(id: exercise.id)
+            }
+            Button("Reorder", systemImage: "line.3.horizontal") { }
+            Button("Create superset", systemImage: "link") { }
+
+            Divider()
+
+            Button("Add exercise above", systemImage: "arrow.up") {
+                activeInsertPicker = InsertExerciseContext(
+                    targetExerciseID: exercise.id,
+                    direction: .above
+                )
+            }
+            Button("Add exercise below", systemImage: "arrow.down") {
+                activeInsertPicker = InsertExerciseContext(
+                    targetExerciseID: exercise.id,
+                    direction: .below
+                )
+            }
+
+            Divider()
+
+            Button("Delete Exercise", systemImage: "trash", role: .destructive) {
+                deleteExercise(exercise.id)
+            }
+        } notesContent: {
             if exercise.notesVisible || !exercise.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 TextField("Add routine notes here", text: $exercises[exerciseIndex].notes, axis: .vertical)
                     .lineLimit(nil)
@@ -283,9 +256,7 @@ struct AddTemplateView: View {
                     .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
                     .focused($focusedField, equals: .notes(exercise.id))
             }
-
-            setTableHeader(showsRestTimer: exercise.showsRestTimer)
-
+        } rowsContent: {
             LazyVStack(spacing: 8) {
                 ForEach(Array(exercises[exerciseIndex].sets.enumerated()), id: \.element.id) { setIndex, set in
                     setRow(
@@ -298,47 +269,8 @@ struct AddTemplateView: View {
                 }
             }
             .animation(.snappy(duration: 0.28, extraBounce: 0.03), value: exercises[exerciseIndex].sets.count)
-
-            Button {
-                withAnimation(.snappy(duration: 0.22, extraBounce: 0)) {
-                    addSet(to: exercise.id)
-                }
-            } label: {
-                Label("Add Set", systemImage: "plus")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 44)
-                    .foregroundStyle(.primary)
-                    .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
-                    .contentShape(RoundedRectangle(cornerRadius: 14))
-            }
-            .buttonStyle(.plain)
-            .animation(nil, value: exercises[exerciseIndex].sets.count)
         }
-        .padding(14)
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18))
-        .padding(.horizontal, 20)
         .animation(.snappy(duration: 0.22, extraBounce: 0), value: exercise.showsRestTimer)
-    }
-
-    private func setTableHeader(showsRestTimer: Bool) -> some View {
-        HStack(spacing: 10) {
-            Text("SET")
-                .frame(width: 40, alignment: .center)
-
-            Text("KG")
-                .frame(maxWidth: .infinity)
-
-            Text("REPS")
-                .frame(maxWidth: .infinity)
-
-            if showsRestTimer {
-                Text("REST")
-                    .frame(maxWidth: .infinity)
-            }
-        }
-        .font(.subheadline.weight(.semibold))
-        .foregroundStyle(.secondary)
     }
 
     private func setRow(
@@ -437,19 +369,6 @@ struct AddTemplateView: View {
             }
         }
         .frame(width: 40, height: 40)
-    }
-
-    private func initialsBadge(for exerciseName: String) -> some View {
-        let initials = initials(from: exerciseName)
-
-        return Circle()
-            .fill(Color(.tertiarySystemBackground))
-            .frame(width: 44, height: 44)
-            .overlay {
-                Text(initials)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
     }
 
     private func restTimerSheet(for context: RestPickerContext) -> some View {
@@ -743,23 +662,6 @@ struct AddTemplateView: View {
         return max(countedSets, 1)
     }
 
-    private func initials(from name: String) -> String {
-        let words = name
-            .split(whereSeparator: { $0.isWhitespace || $0.isNewline })
-            .prefix(2)
-
-        let joined = words
-            .compactMap { $0.first }
-            .map { String($0) }
-            .joined()
-
-        if joined.isEmpty {
-            return "EX"
-        }
-
-        return joined.uppercased()
-    }
-
     private func saveTemplate() {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty, !exercises.isEmpty else {
@@ -1036,10 +938,8 @@ private enum InsertExerciseDirection: String {
 }
 
 #Preview {
-    NavigationStack {
-        AddTemplateView(template: AddTemplateViewPreview.sampleTemplate)
-    }
-    .modelContainer(AddTemplateViewPreview.container)
+    AddTemplatePreviewHost()
+        .modelContainer(AddTemplateViewPreview.container)
 }
 
 private enum AddTemplateViewPreview {
@@ -1113,93 +1013,18 @@ private enum AddTemplateViewPreview {
     }()
 }
 
-private extension TemplateSetType {
-    static let menuPrimaryCases: [TemplateSetType] = [.normal, .warmUp, .failure]
+private struct AddTemplatePreviewHost: View {
+    @State private var isPresented = true
 
-    var countsTowardDisplayedSetNumber: Bool {
-        switch self {
-        case .normal, .failure:
-            true
-        case .warmUp, .drop:
-            false
-        }
-    }
-
-    var menuTitle: String {
-        switch self {
-        case .normal:
-            "Normal"
-        case .warmUp:
-            "Warm Up"
-        case .failure:
-            "Failure"
-        case .drop:
-            "Dropset"
-        }
-    }
-
-    var menuSystemImage: String {
-        switch self {
-        case .normal:
-            "circle"
-        case .warmUp:
-            "flame.fill"
-        case .failure:
-            "exclamationmark.triangle"
-        case .drop:
-            "arrow.down.circle"
-        }
-    }
-
-    var rowSystemImage: String {
-        switch self {
-        case .normal:
-            "circle"
-        case .warmUp:
-            "flame.fill"
-        case .failure:
-            "exclamationmark.triangle.fill"
-        case .drop:
-            "arrow.down"
-        }
-    }
-
-    var rowForegroundColor: Color {
-        switch self {
-        case .normal:
-            .primary
-        case .warmUp:
-            .orange
-        case .failure:
-            .red
-        case .drop:
-            .blue
-        }
-    }
-
-    var rowBackgroundColor: Color {
-        switch self {
-        case .normal:
-            Color(.tertiarySystemBackground)
-        case .warmUp:
-            .orange.opacity(0.14)
-        case .failure:
-            .red.opacity(0.14)
-        case .drop:
-            .blue.opacity(0.14)
-        }
-    }
-
-    var rowBorderColor: Color {
-        switch self {
-        case .normal:
-            Color.secondary.opacity(0.18)
-        case .warmUp:
-            .orange.opacity(0.32)
-        case .failure:
-            .red.opacity(0.32)
-        case .drop:
-            .blue.opacity(0.32)
+    var body: some View {
+        NavigationStack {
+            Color(.systemGroupedBackground)
+                .sheet(isPresented: $isPresented) {
+                    NavigationStack {
+                        AddTemplateView(template: AddTemplateViewPreview.sampleTemplate)
+                    }
+                    .interactiveDismissDisabled()
+                }
         }
     }
 }

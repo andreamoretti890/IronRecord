@@ -6,6 +6,7 @@ struct TemplateRowView: View {
     let onEditTapped: () -> Void
     let onDuplicateTapped: () -> Void
     let onDeleteTapped: () -> Void
+    let onStartTapped: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -42,7 +43,7 @@ struct TemplateRowView: View {
                 .truncationMode(.tail)
             
             Button("Start Template") {
-                
+                onStartTapped()
             }
             .buttonStyle(.borderedProminent)
             .accessibilityHint("Starts \(template.name)")
@@ -59,7 +60,8 @@ struct TemplateRowView: View {
                 template: template,
                 onEditTapped: {},
                 onDuplicateTapped: {},
-                onDeleteTapped: {}
+                onDeleteTapped: {},
+                onStartTapped: {}
             )
             .padding()
         }
@@ -69,14 +71,7 @@ struct TemplateRowView: View {
 
 private enum TemplateRowPreview {
     static let container: ModelContainer = {
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try! ModelContainer(
-            for: Exercise.self,
-            WorkoutTemplate.self,
-            TemplateExercise.self,
-            TemplateExerciseSet.self,
-            configurations: configuration
-        )
+        let container = IronRecordModelContainer.makeContainer(inMemory: true)
         try! SeedData.seedIfNeeded(in: container.mainContext)
         return container
     }()
