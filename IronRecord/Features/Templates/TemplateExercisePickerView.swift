@@ -56,7 +56,7 @@ struct ExercisePickerView: View {
             }
 
             List {
-                if allowsCustomExerciseCreation, !filteredCustomExercises.isEmpty {
+                if !filteredCustomExercises.isEmpty {
                     Section("Custom Exercises") {
                         ForEach(filteredCustomExercises) { exercise in
                             exerciseRow(exercise)

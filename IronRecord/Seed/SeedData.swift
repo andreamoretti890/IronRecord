@@ -44,6 +44,7 @@ enum SeedData {
                 exercise.primaryBodyParts = [seed.primaryBodyPart]
                 exercise.secondaryBodyParts = []
                 exercise.category = seed.category
+                exercise.equipment = seed.equipment
             } else if exercise.primaryBodyParts.isEmpty {
                 exercise.primaryBodyParts = [.others]
                 exercise.secondaryBodyParts = []
