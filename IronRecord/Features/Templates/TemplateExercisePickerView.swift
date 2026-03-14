@@ -404,7 +404,9 @@ struct ExercisePickerView: View {
                 return left.equipment.rawValue.localizedStandardCompare(right.equipment.rawValue) == .orderedAscending
             }
 
-            return left.id.hashValue < right.id.hashValue
+            // PersistentIdentifier doesn't have a stable string representation,
+            // but items reaching this point are effectively equivalent for display purposes
+            return false
         }
     }
 }

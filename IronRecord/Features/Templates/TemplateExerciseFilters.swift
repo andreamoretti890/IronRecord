@@ -56,8 +56,8 @@ enum ExerciseEquipment: String, CaseIterable, Identifiable {
     case barbell = "Barbell"
     case cableDouble = "Cable (Double)"
     case cableSingle = "Cable (Single)"
-    case dumbellDouble = "Dumbell (Double)"
-    case dumbellSingle = "Dumbell (Single)"
+    case dumbbellDouble = "Dumbbell (Double)"
+    case dumbbellSingle = "Dumbbell (Single)"
     case ezBar = "EZ Bar"
     case bodyweight = "Bodyweight"
     case cardio = "Cardio"
@@ -115,7 +115,7 @@ enum ExerciseEquipment: String, CaseIterable, Identifiable {
         if combined.contains("bodyweight") || combined.contains("pull up") { return .bodyweight }
         if containsAny(tokenSet, ["barbell"]) { return .barbell }
         if containsAny(tokenSet, ["dumbbell", "dumbell"]) {
-            return combined.contains("single") ? .dumbellSingle : .dumbellDouble
+            return combined.contains("single") ? .dumbbellSingle : .dumbbellDouble
         }
         if containsAny(tokenSet, ["machine"]) || combined.contains("leg press") { return .machine }
         if containsAny(tokenSet, ["cable"]) {
@@ -133,16 +133,16 @@ enum ExerciseEquipment: String, CaseIterable, Identifiable {
         "double cable": .cableDouble,
         "cable single": .cableSingle,
         "single cable": .cableSingle,
-        "dumbbell": .dumbellDouble,
-        "dumbell": .dumbellDouble,
-        "dumbbell double": .dumbellDouble,
-        "dumbell double": .dumbellDouble,
-        "double dumbbell": .dumbellDouble,
-        "double dumbell": .dumbellDouble,
-        "dumbbell single": .dumbellSingle,
-        "dumbell single": .dumbellSingle,
-        "single dumbbell": .dumbellSingle,
-        "single dumbell": .dumbellSingle,
+        "dumbbell": .dumbbellDouble,
+        "dumbell": .dumbbellDouble,
+        "dumbbell double": .dumbbellDouble,
+        "dumbell double": .dumbbellDouble,
+        "double dumbbell": .dumbbellDouble,
+        "double dumbell": .dumbbellDouble,
+        "dumbbell single": .dumbbellSingle,
+        "dumbell single": .dumbbellSingle,
+        "single dumbbell": .dumbbellSingle,
+        "single dumbell": .dumbbellSingle,
         "ez bar": .ezBar,
         "ezbar": .ezBar,
         "curl bar": .ezBar,
@@ -187,7 +187,7 @@ enum ExerciseMode: String, CaseIterable, Identifiable {
         switch inferredEquipment {
         case .cardio:
             return .cardioDuration
-        case .band, .barbell, .cableDouble, .cableSingle, .dumbellDouble, .dumbellSingle,
+        case .band, .barbell, .cableDouble, .cableSingle, .dumbbellDouble, .dumbbellSingle,
              .ezBar, .kettlebellDouble, .kettlebellSingle, .machine, .machineAssisted,
              .rope, .smithMachine, .trx, .weightedBall:
             return .weightedReps

@@ -293,13 +293,13 @@ private extension SeedData {
         ExerciseSeed(name: "Cable Lateral Raise", category: "Shoulders", primaryBodyPart: .shoulders, equipment: "Cable (Single)"),
         ExerciseSeed(name: "Chest Supported Row", category: "Back", primaryBodyPart: .middleBack, equipment: "Machine"),
         ExerciseSeed(name: "Conventional Deadlift", category: "Back", primaryBodyPart: .lowerBack, equipment: "Barbell"),
-        ExerciseSeed(name: "Dumbbell Biceps Curl", category: "Arms", primaryBodyPart: .biceps, equipment: "Dumbell (Single)"),
+        ExerciseSeed(name: "Dumbbell Biceps Curl", category: "Arms", primaryBodyPart: .biceps, equipment: "Dumbbell (Single)"),
         ExerciseSeed(name: "Face Pull", category: "Upper Back", primaryBodyPart: .traps, equipment: "Rope"),
         ExerciseSeed(name: "Front Squat", category: "Legs", primaryBodyPart: .quads, equipment: "Barbell"),
         ExerciseSeed(name: "Hack Squat", category: "Legs", primaryBodyPart: .quads, equipment: "Machine"),
-        ExerciseSeed(name: "Hammer Curl", category: "Arms", primaryBodyPart: .forearms, equipment: "Dumbell (Single)"),
+        ExerciseSeed(name: "Hammer Curl", category: "Arms", primaryBodyPart: .forearms, equipment: "Dumbbell (Single)"),
         ExerciseSeed(name: "Hip Thrust", category: "Glutes", primaryBodyPart: .glutes, equipment: "Barbell"),
-        ExerciseSeed(name: "Incline Dumbbell Press", category: "Chest", primaryBodyPart: .chest, equipment: "Dumbell (Double)"),
+        ExerciseSeed(name: "Incline Dumbbell Press", category: "Chest", primaryBodyPart: .chest, equipment: "Dumbbell (Double)"),
         ExerciseSeed(name: "Lat Pulldown", category: "Back", primaryBodyPart: .lats, equipment: "Machine"),
         ExerciseSeed(name: "Leg Extension", category: "Legs", primaryBodyPart: .quads, equipment: "Machine"),
         ExerciseSeed(name: "Leg Press", category: "Legs", primaryBodyPart: .quads, equipment: "Machine"),
@@ -308,7 +308,7 @@ private extension SeedData {
         ExerciseSeed(name: "Pull-Up", category: "Back", primaryBodyPart: .lats, equipment: "Bodyweight"),
         ExerciseSeed(name: "Romanian Deadlift", category: "Legs", primaryBodyPart: .hamstrings, equipment: "Barbell"),
         ExerciseSeed(name: "Seated Cable Row", category: "Back", primaryBodyPart: .middleBack, equipment: "Cable (Double)"),
-        ExerciseSeed(name: "Seated Dumbbell Shoulder Press", category: "Shoulders", primaryBodyPart: .shoulders, equipment: "Dumbell (Double)"),
+        ExerciseSeed(name: "Seated Dumbbell Shoulder Press", category: "Shoulders", primaryBodyPart: .shoulders, equipment: "Dumbbell (Double)"),
         ExerciseSeed(name: "Standing Calf Raise", category: "Calves", primaryBodyPart: .calves, equipment: "Machine"),
         ExerciseSeed(name: "Triceps Rope Pushdown", category: "Arms", primaryBodyPart: .triceps, equipment: "Rope")
     ]
@@ -517,3 +517,4 @@ private extension SeedData {
         )
     ]
 }
+

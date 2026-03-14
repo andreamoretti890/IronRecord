@@ -158,6 +158,7 @@ struct CreateCustomExerciseView: View {
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
+        .interactiveDismissDisabled()
         .onAppear {
             isNameFieldFocused = true
         }
@@ -382,7 +383,7 @@ private struct CreateCustomExercisePreviewHost: View {
                 NavigationStack {
                     CreateCustomExerciseView(
                         initialName: "Biceps Curl",
-                        initialEquipment: .dumbellDouble,
+                        initialEquipment: .dumbbellDouble,
                         initialPrimaryBodyParts: [.biceps, .forearms]
                     )
                 }

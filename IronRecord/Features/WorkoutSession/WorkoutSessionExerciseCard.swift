@@ -244,14 +244,14 @@ struct WorkoutSessionExerciseCard: View {
             sessionExercise.position += 1
         }
 
-        let sourceExercise = sourceExercise(for: selectedExercise.id)
+        let resolvedSourceExercise = sourceExercise(for: selectedExercise.id)
         let insertedExercise = WorkoutSessionExercise(
             position: insertionPosition,
             exerciseName: selectedExercise.name,
             notes: "",
             defaultRestSeconds: exercise.defaultRestSeconds,
             session: session,
-            sourceExercise: sourceExercise
+            sourceExercise: resolvedSourceExercise
         )
 
         insertedExercise.sets = [
