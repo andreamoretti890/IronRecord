@@ -665,11 +665,6 @@ struct AddTemplateView: View {
         }
 
         let template = existingTemplate ?? WorkoutTemplate(name: trimmedTitle)
-
-        guard exercises.allSatisfy({ exerciseByName[$0.catalogExerciseID] != nil }) else {
-            errorMessage = "One or more selected exercises are no longer available."
-            return
-        }
         
         template.name = trimmedTitle
 
