@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 enum ExercisePickerSelectionMode {
@@ -8,33 +9,33 @@ enum ExercisePickerSelectionMode {
 struct ExercisePickerView: View {
     @Environment(\.dismiss) private var dismiss
 
-    let exercises: [ExercisePickerItem]
     let onAddSelected: ([ExercisePickerItem]) -> Void
     let selectionMode: ExercisePickerSelectionMode
+    let allowsCustomExerciseCreation: Bool
     let actionTitle: String?
-    let actionSystemImage: String?
 
+    @State private var exerciseItems: [ExercisePickerItem]
     @State private var searchText = ""
     @State private var selectedBodyPart: ExerciseBodyPart?
     @State private var selectedEquipment: ExerciseEquipment?
     @State private var selectedMode: ExerciseMode?
-    @State private var selectedExerciseIDs: Set<String>
-    @State private var activeFilterPicker: ExerciseFilterPicker?
+    @State private var selectedExerciseIDs: Set<PersistentIdentifier>
+    @State private var activeSheet: ExercisePickerSheet?
     @FocusState private var isSearchFieldFocused: Bool
 
     init(
         exercises: [ExercisePickerItem],
-        initiallySelectedIDs: Set<String>,
+        initiallySelectedIDs: Set<PersistentIdentifier>,
         selectionMode: ExercisePickerSelectionMode = .multiple,
+        allowsCustomExerciseCreation: Bool = false,
         actionTitle: String? = nil,
-        actionSystemImage: String? = "plus",
         onAddSelected: @escaping ([ExercisePickerItem]) -> Void
     ) {
-        self.exercises = exercises
         self.onAddSelected = onAddSelected
         self.selectionMode = selectionMode
+        self.allowsCustomExerciseCreation = allowsCustomExerciseCreation
         self.actionTitle = actionTitle
-        self.actionSystemImage = actionSystemImage
+        _exerciseItems = State(initialValue: Self.orderedExerciseItems(exercises))
 
         if selectionMode == .single {
             if let first = initiallySelectedIDs.first {
@@ -50,38 +51,33 @@ struct ExercisePickerView: View {
     var body: some View {
         VStack(spacing: 10) {
             filterBar
+            if allowsCustomExerciseCreation {
+                customExerciseButton
+            }
 
-            List(filteredExercises) { exercise in
-                Button {
-                    toggleSelection(for: exercise.id)
-                } label: {
-                    HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(exercise.name)
-                                .foregroundStyle(.primary)
-                            Text(exercise.bodyPart.rawValue)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-
-                        if selectedExerciseIDs.contains(exercise.id) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.tint)
+            List {
+                if !filteredCustomExercises.isEmpty {
+                    Section("Custom Exercises") {
+                        ForEach(filteredCustomExercises) { exercise in
+                            exerciseRow(exercise)
                         }
                     }
                 }
-                .buttonStyle(.plain)
+
+                Section {
+                    ForEach(filteredCatalogExercises) { exercise in
+                        exerciseRow(exercise)
+                    }
+                }
             }
             .overlay {
-                if exercises.isEmpty {
+                if exerciseItems.isEmpty {
                     ContentUnavailableView(
                         "No Exercises",
                         systemImage: "dumbbell",
                         description: Text("Add exercises to your library first.")
                     )
-                } else if filteredExercises.isEmpty {
+                } else if filteredCatalogExercises.isEmpty && filteredCustomExercises.isEmpty {
                     ContentUnavailableView.search
                 }
             }
@@ -97,9 +93,6 @@ struct ExercisePickerView: View {
         .navigationTitle("Select Exercises")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
-        .onAppear {
-            isSearchFieldFocused = true
-        }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") {
@@ -108,9 +101,10 @@ struct ExercisePickerView: View {
             }
 
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Create") {
-                    // Placeholder for custom exercise creation flow.
+                Button(toolbarActionTitle) {
+                    addSelectedAndDismiss()
                 }
+                .disabled(selectedExerciseIDs.isEmpty)
             }
 
             ToolbarItemGroup(placement: .keyboard) {
@@ -125,31 +119,31 @@ struct ExercisePickerView: View {
                 }
             }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if !exercises.isEmpty && !selectedExerciseIDs.isEmpty {
-                selectionDock
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                    .padding(.bottom, 8)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
-        .animation(.snappy(duration: 0.25), value: selectedExerciseIDs.count)
-        .animation(.snappy(duration: 0.25), value: exercises.isEmpty)
-        .sheet(item: $activeFilterPicker) { picker in
-            NavigationStack {
-                FilterSelectionSheet(
-                    title: picker.title,
-                    allLabel: picker.allLabel,
-                    options: options(for: picker),
-                    selectedOptionID: selectedOptionID(for: picker),
-                    onSelect: { optionID in
-                        applyFilterSelection(optionID, for: picker)
+        .animation(.snappy(duration: 0.25), value: exerciseItems.isEmpty)
+        .animation(.snappy(duration: 0.25), value: filteredCustomExercises.count)
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .createCustomExercise:
+                NavigationStack {
+                    CreateCustomExerciseView { exercise in
+                        handleCustomExerciseSave(exercise)
                     }
-                )
+                }
+            case .filter(let picker):
+                NavigationStack {
+                    FilterSelectionSheet(
+                        title: picker.title,
+                        allLabel: picker.allLabel,
+                        options: options(for: picker),
+                        selectedOptionID: selectedOptionID(for: picker),
+                        onSelect: { optionID in
+                            applyFilterSelection(optionID, for: picker)
+                        }
+                    )
+                }
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
             }
-            .presentationDetents([.medium])
-            .presentationDragIndicator(.visible)
         }
     }
 
@@ -161,7 +155,7 @@ struct ExercisePickerView: View {
                     isActive: selectedBodyPart != nil
                 ) {
                     isSearchFieldFocused = false
-                    activeFilterPicker = .bodyPart
+                    activeSheet = .filter(.bodyPart)
                 }
 
                 FilterChip(
@@ -169,7 +163,7 @@ struct ExercisePickerView: View {
                     isActive: selectedEquipment != nil
                 ) {
                     isSearchFieldFocused = false
-                    activeFilterPicker = .equipment
+                    activeSheet = .filter(.equipment)
                 }
 
                 FilterChip(
@@ -177,7 +171,7 @@ struct ExercisePickerView: View {
                     isActive: selectedMode != nil
                 ) {
                     isSearchFieldFocused = false
-                    activeFilterPicker = .mode
+                    activeSheet = .filter(.mode)
                 }
 
                 if hasActiveFilters {
@@ -199,10 +193,39 @@ struct ExercisePickerView: View {
         .scrollIndicators(.hidden)
     }
 
-    private var filteredExercises: [ExercisePickerItem] {
-        let filteredByBodyPart = exercises.filter { exercise in
+    private var customExerciseButton: some View {
+        Button {
+            isSearchFieldFocused = false
+            activeSheet = .createCustomExercise
+        } label: {
+            Label("Add custom exercise", systemImage: "plus")
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .foregroundStyle(Color.accentColor)
+                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+    }
+
+    private var filteredCatalogExercises: [ExercisePickerItem] {
+        filteredExercises(matching: .catalog)
+    }
+
+    private var filteredCustomExercises: [ExercisePickerItem] {
+        filteredExercises(matching: .custom)
+    }
+
+    private func filteredExercises(matching source: ExercisePickerSource) -> [ExercisePickerItem] {
+        let filteredByBodyPart = exerciseItems.filter { exercise in
             guard let selectedBodyPart else { return true }
-            return exercise.bodyPart == selectedBodyPart
+            return exercise.allBodyParts.contains(selectedBodyPart)
         }
 
         let filteredByEquipment = filteredByBodyPart.filter { exercise in
@@ -216,14 +239,21 @@ struct ExercisePickerView: View {
         }
 
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return filteredByMode }
-        return filteredByMode.filter { exercise in
-            exercise.name.localizedStandardContains(query)
+        let filteredByQuery = if query.isEmpty {
+            filteredByMode
+        } else {
+            filteredByMode.filter { exercise in
+                exercise.name.localizedStandardContains(query)
+            }
+        }
+
+        return filteredByQuery.filter { exercise in
+            exercise.source == source
         }
     }
 
     private var selectedItemsOrderedByCatalog: [ExercisePickerItem] {
-        let selected = exercises.filter { selectedExerciseIDs.contains($0.id) }
+        let selected = exerciseItems.filter { selectedExerciseIDs.contains($0.id) }
         if selectionMode == .single {
             return Array(selected.prefix(1))
         }
@@ -231,7 +261,7 @@ struct ExercisePickerView: View {
         return selected
     }
 
-    private func toggleSelection(for exerciseID: String) {
+    private func toggleSelection(for exerciseID: PersistentIdentifier) {
         if selectionMode == .single {
             if selectedExerciseIDs.contains(exerciseID) {
                 selectedExerciseIDs.remove(exerciseID)
@@ -287,58 +317,143 @@ struct ExercisePickerView: View {
         selectedBodyPart != nil || selectedEquipment != nil || selectedMode != nil
     }
 
-    private var selectionDock: some View {
-        Button {
-            addSelectedAndDismiss()
-        } label: {
-            if let actionSystemImage {
-                Label(addButtonTitle, systemImage: actionSystemImage)
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .foregroundStyle(.white)
-                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 16))
-                    .contentShape(RoundedRectangle(cornerRadius: 16))
-                    .contentTransition(.numericText())
-            } else {
-                Text(addButtonTitle)
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .foregroundStyle(.white)
-                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 16))
-                    .contentShape(RoundedRectangle(cornerRadius: 16))
-                    .contentTransition(.numericText())
-            }
-        }
-        .buttonStyle(.plain)
-        .disabled(selectedExerciseIDs.isEmpty)
-        .accessibilityLabel(selectionMode == .single ? "Replace selected exercise" : "Add selected exercises")
-        .accessibilityValue("\(selectedExerciseIDs.count) selected")
-    }
-
-    private var addButtonTitle: String {
+    private var toolbarActionTitle: String {
         if let actionTitle {
             return actionTitle
         }
 
-        if selectionMode == .single {
-            return "Replace exercise"
-        }
+        return selectionMode == .single ? "Replace" : "Add"
+    }
 
-        let count = selectedExerciseIDs.count
-        switch count {
-        case 0:
-            return "Add exercises"
-        case 1:
-            return "Add 1 exercise"
-        default:
-            return "Add \(count) exercises"
+    private func exerciseRow(_ exercise: ExercisePickerItem) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(exercise.name)
+                    .foregroundStyle(.primary)
+
+                Text(exercise.equipment.rawValue)
+                    .font(.footnote)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            selectionButton(for: exercise)
         }
+    }
+
+    private func selectionButton(for exercise: ExercisePickerItem) -> some View {
+        let isSelected = selectedExerciseIDs.contains(exercise.id)
+        let unselectedIconName = selectionMode == .single ? "arrow.triangle.2.circlepath" : "plus"
+
+        return Button {
+            toggleSelection(for: exercise.id)
+        } label: {
+            Image(systemName: isSelected ? "checkmark" : unselectedIconName)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(isSelected ? Color.white : Color.accentColor)
+                .frame(width: 32, height: 32)
+                .background(
+                    isSelected ? Color.accentColor : Color.clear,
+                    in: RoundedRectangle(cornerRadius: 10)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(
+                            isSelected ? Color.accentColor : Color(.separator),
+                            lineWidth: 1
+                        )
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isSelected ? "Deselect \(exercise.name)" : "Select \(exercise.name)")
     }
 
     private func addSelectedAndDismiss() {
         onAddSelected(selectedItemsOrderedByCatalog)
         dismiss()
+    }
+
+    private func handleCustomExerciseSave(_ exercise: Exercise) {
+        let pickerItem = exercise.pickerItem
+        guard !exerciseItems.contains(where: { $0.id == pickerItem.id }) else {
+            return
+        }
+
+        exerciseItems = Self.orderedExerciseItems(exerciseItems + [pickerItem])
+    }
+
+    private static func orderedExerciseItems(_ items: [ExercisePickerItem]) -> [ExercisePickerItem] {
+        items.sorted { left, right in
+            let sourceOrder: (ExercisePickerSource) -> Int = { source in
+                source == .custom ? 0 : 1
+            }
+
+            if sourceOrder(left.source) != sourceOrder(right.source) {
+                return sourceOrder(left.source) < sourceOrder(right.source)
+            }
+
+            let nameComparison = left.name.localizedStandardCompare(right.name)
+            if nameComparison != .orderedSame {
+                return nameComparison == .orderedAscending
+            }
+
+            if left.equipment.rawValue != right.equipment.rawValue {
+                return left.equipment.rawValue.localizedStandardCompare(right.equipment.rawValue) == .orderedAscending
+            }
+
+            // PersistentIdentifier doesn't have a stable string representation,
+            // but items reaching this point are effectively equivalent for display purposes
+            return false
+        }
+    }
+}
+
+private enum ExercisePickerSheet: Identifiable {
+    case filter(ExerciseFilterPicker)
+    case createCustomExercise
+
+    var id: String {
+        switch self {
+        case .filter(let picker):
+            return "filter-\(picker.id)"
+        case .createCustomExercise:
+            return "create-custom-exercise"
+        }
+    }
+}
+
+#Preview("Standard Flow") {
+    TemplateExercisePickerPreviewHost()
+        .modelContainer(TemplateExercisePickerPreview.container)
+}
+
+private enum TemplateExercisePickerPreview {
+    static let container: ModelContainer = {
+        let container = IronRecordModelContainer.makeContainer(inMemory: true)
+        try! SeedData.seedIfNeeded(in: container.mainContext)
+        return container
+    }()
+
+    static var items: [ExercisePickerItem] {
+        let descriptor = FetchDescriptor<Exercise>(sortBy: [SortDescriptor(\.name)])
+        let exercises = try! container.mainContext.fetch(descriptor)
+
+        return exercises.map(\.pickerItem)
+    }
+}
+
+private struct TemplateExercisePickerPreviewHost: View {
+    var body: some View {
+        NavigationStack {
+            ExercisePickerView(
+                exercises: TemplateExercisePickerPreview.items,
+                initiallySelectedIDs: Set(TemplateExercisePickerPreview.items.prefix(1).map(\.id)),
+                allowsCustomExerciseCreation: true,
+                onAddSelected: { _ in }
+            )
+        }
     }
 }

@@ -70,6 +70,8 @@ final class TemplateExerciseSet: Identifiable {
     var targetReps: Int?
     var targetRepMin: Int?
     var targetRepMax: Int?
+    var restSeconds: Int
+    var typeRawValue: String
 
     var templateExercise: TemplateExercise?
 
@@ -79,6 +81,8 @@ final class TemplateExerciseSet: Identifiable {
         targetReps: Int? = nil,
         targetRepMin: Int? = nil,
         targetRepMax: Int? = nil,
+        restSeconds: Int = 0,
+        typeRawValue: String = TemplateSetType.normal.rawValue,
         templateExercise: TemplateExercise? = nil
     ) {
         self.position = position
@@ -86,8 +90,17 @@ final class TemplateExerciseSet: Identifiable {
         self.targetReps = targetReps
         self.targetRepMin = targetRepMin
         self.targetRepMax = targetRepMax
+        self.restSeconds = restSeconds
+        self.typeRawValue = typeRawValue
         self.templateExercise = templateExercise
     }
+}
+
+enum TemplateSetType: String, CaseIterable, Codable {
+    case normal
+    case warmUp = "warm_up"
+    case failure
+    case drop
 }
 
 extension TemplateExercise {
@@ -138,6 +151,25 @@ extension WorkoutTemplate {
 }
 
 extension TemplateExerciseSet {
+    var setType: TemplateSetType {
+        get { TemplateSetType(rawValue: typeRawValue) ?? .normal }
+        set { typeRawValue = newValue.rawValue }
+    }
+
+    var displayWeightText: String {
+        guard let prescribedWeight else {
+            return ""
+        }
+
+        if prescribedWeight == floor(prescribedWeight) {
+            return String(Int(prescribedWeight))
+        }
+
+        return prescribedWeight.formatted(
+            .number.precision(.fractionLength(0 ... 2))
+        )
+    }
+
     var displayRepText: String {
         if let targetRepMin, let targetRepMax {
             return "\(targetRepMin)-\(targetRepMax)"
@@ -148,5 +180,13 @@ extension TemplateExerciseSet {
         }
 
         return ""
+    }
+
+    var effectiveRestSeconds: Int {
+        if restSeconds > 0 {
+            return restSeconds
+        }
+
+        return templateExercise?.restSeconds ?? 0
     }
 }

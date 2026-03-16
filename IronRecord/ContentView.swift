@@ -61,16 +61,5 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
-        .modelContainer(
-            for: [
-                Exercise.self,
-                WorkoutTemplate.self,
-                TemplateExercise.self,
-                TemplateExerciseSet.self,
-                WorkoutSession.self,
-                WorkoutSessionExercise.self,
-                WorkoutSessionSet.self
-            ],
-            inMemory: true
-        )
+        .modelContainer(IronRecordModelContainer.makeContainer(inMemory: true))
 }

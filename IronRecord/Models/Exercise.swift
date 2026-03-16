@@ -10,9 +10,10 @@ import SwiftData
 
 @Model
 final class Exercise {
-    @Attribute(.unique) var name: String
+    var name: String
     var category: String
-    var bodyPart: String
+    var primaryBodyParts: [ExerciseBodyPart]
+    var secondaryBodyParts: [ExerciseBodyPart]
     var equipment: String
     var notes: String
     var createdAt: Date
@@ -23,14 +24,16 @@ final class Exercise {
     init(
         name: String,
         category: String,
-        bodyPart: String = "Others",
+        primaryBodyParts: [ExerciseBodyPart],
+        secondaryBodyParts: [ExerciseBodyPart] = [],
         equipment: String,
         notes: String = "",
         createdAt: Date = .now
     ) {
         self.name = name
         self.category = category
-        self.bodyPart = bodyPart
+        self.primaryBodyParts = primaryBodyParts
+        self.secondaryBodyParts = secondaryBodyParts
         self.equipment = equipment
         self.notes = notes
         self.createdAt = createdAt

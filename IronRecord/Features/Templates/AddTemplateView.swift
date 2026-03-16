@@ -15,6 +15,7 @@ struct AddTemplateView: View {
     @State private var exercises: [TemplateExerciseDraft] = []
     @State private var activeRestPicker: RestPickerContext?
     @State private var activeReplacePicker: ReplaceExerciseContext?
+    @State private var activeInsertPicker: InsertExerciseContext?
     @State private var pendingRestSeconds = RestPickerContext.offValue
     @State private var isShowingDiscardAlert = false
     @State private var errorMessage: String?
@@ -28,7 +29,7 @@ struct AddTemplateView: View {
         if savesAsNewTemplate, let template {
             initialTitle = "\(template.name) (copy)"
         } else {
-            initialTitle = template?.name ?? ""
+            initialTitle = template?.name ?? "New Workout"
         }
 
         _title = State(initialValue: initialTitle)
@@ -38,29 +39,30 @@ struct AddTemplateView: View {
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 18) {
-                titleCard
-
-                if exercises.isEmpty {
-                    emptyExercisesCard
+        Group {
+            if exercises.isEmpty {
+                VStack(alignment: .leading, spacing: 24) {
+                    titleCard
+                    Spacer(minLength: 0)
+                    emptyExercisesView
+                    Spacer(minLength: 0)
                 }
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 14) {
+                        titleCard
 
-                ForEach(Array(exercises.enumerated()), id: \.element.id) { index, exercise in
-                    VStack(spacing: 0) {
-                        exerciseCard(exerciseIndex: index, exercise: exercise)
-
-                        if index < exercises.count - 1 {
-                            Divider()
-                                .padding(.top, 14)
-                                .padding(.leading, 16)
+                        ForEach(exercises.enumerated(), id: \.element.id) { index, exercise in
+                            exerciseCard(exerciseIndex: index, exercise: exercise)
                         }
-                    }
-                }
 
-                addExerciseLink
+                        addExerciseLink
+                    }
+                    .padding(.vertical, 12)
+                }
             }
-            .padding(.vertical, 12)
         }
         .scrollDismissesKeyboard(.interactively)
         .background {
@@ -100,7 +102,7 @@ struct AddTemplateView: View {
             }
         }
         .sheet(item: $activeRestPicker) { context in
-            restTimerSheet(for: context.id)
+            restTimerSheet(for: context)
                 .presentationDetents([.height(280)])
                 .presentationDragIndicator(.visible)
         }
@@ -108,15 +110,32 @@ struct AddTemplateView: View {
             NavigationStack {
                 ExercisePickerView(
                     exercises: selectableExercises,
-                    initiallySelectedIDs: replacementSelectionIDs(for: context.id),
+                    initiallySelectedIDs: [],
                     selectionMode: .single,
-                    actionTitle: "Replace exercise",
-                    actionSystemImage: "arrow.triangle.2.circlepath",
+                    allowsCustomExerciseCreation: true,
+                    actionTitle: "Replace",
                     onAddSelected: { selectedExerciseItems in
                         guard let selectedExercise = selectedExerciseItems.first else {
                             return
                         }
                         replaceExercise(context.id, with: selectedExercise)
+                    }
+                )
+            }
+        }
+        .sheet(item: $activeInsertPicker) { context in
+            NavigationStack {
+                ExercisePickerView(
+                    exercises: selectableExercises,
+                    initiallySelectedIDs: [],
+                    selectionMode: .single,
+                    allowsCustomExerciseCreation: true,
+                    actionTitle: "Add",
+                    onAddSelected: { selectedExerciseItems in
+                        guard let selectedExercise = selectedExerciseItems.first else {
+                            return
+                        }
+                        insertExercise(selectedExercise, around: context)
                     }
                 )
             }
@@ -140,180 +159,125 @@ struct AddTemplateView: View {
 
     private var titleCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Template Title")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            TextField("Template title", text: $title)
+            TextField("Template name", text: $title)
                 .textInputAutocapitalization(.words)
                 .autocorrectionDisabled()
-                .font(.title3.weight(.semibold))
+                .font(.title2.bold())
                 .focused($focusedField, equals: .title)
+
+            Text(templateSummaryText)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 16)
     }
 
-    private var emptyExercisesCard: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("No exercises yet")
-                .font(.headline)
-            Text("Tap Add exercise to start building this template.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+    private var emptyExercisesView: some View {
+        ContentUnavailableView {
+            Label("No Exercises Added", systemImage: "dumbbell")
+        } description: {
+            Text("Tap Add Exercises to start building this template.")
+        } actions: {
+            addExerciseLink
         }
-        .padding(.horizontal, 16)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity)
     }
 
     private var addExerciseLink: some View {
         NavigationLink {
             ExercisePickerView(
                 exercises: selectableExercises,
-                initiallySelectedIDs: Set(exercises.map(\.catalogExerciseID)),
+                initiallySelectedIDs: Set(exercises.compactMap(\.exerciseID)),
+                allowsCustomExerciseCreation: true,
                 onAddSelected: { selectedExerciseItems in
                     addExercises(selectedExerciseItems)
                 }
             )
         } label: {
-            Label("Add exercise", systemImage: "plus")
-                .font(.headline)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .foregroundStyle(.white)
-                .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 16))
-                .contentShape(Rectangle())
+            Label("Add Exercises", systemImage: "plus")
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.capsule)
+        .controlSize(.large)
         .padding(.horizontal, 16)
     }
 
     private func exerciseCard(exerciseIndex: Int, exercise: TemplateExerciseDraft) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center, spacing: 12) {
-                initialsBadge(for: exercise.name)
-
-                Text(exercise.name)
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(.tint)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                Menu {
-                    Button(exercise.notes.isEmpty && !exercise.notesVisible ? "Add Notes" : "Edit Notes", systemImage: "note.text") {
-                        exercises[exerciseIndex].notesVisible = true
-                    }
-
-                    Button("Replace", systemImage: "arrow.triangle.2.circlepath") {
-                        activeReplacePicker = ReplaceExerciseContext(id: exercise.id)
-                    }
-                    Button("Reorder", systemImage: "line.3.horizontal") { }
-                    Button("Add to Superset", systemImage: "square.stack.3d.up") { }
-
-                    Divider()
-
-                    Button("Delete Exercise", systemImage: "trash", role: .destructive) {
-                        deleteExercise(exercise.id)
-                    }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.headline)
-                        .padding(10)
-                        .contentShape(Rectangle())
+        ExerciseCard(
+            title: exercise.name,
+            equipmentText: exerciseEquipmentText(for: exercise),
+            horizontalPadding: 20,
+            tableStyle: .template(showsRestTimer: exercise.showsRestTimer),
+            showsRestTimerControl: true,
+            isRestTimerActive: exercise.showsRestTimer,
+            onToggleRestTimer: {
+                withAnimation(.snappy(duration: 0.22, extraBounce: 0)) {
+                    exercises[exerciseIndex].showsRestTimer.toggle()
                 }
-                .buttonStyle(.plain)
+            },
+            showsMenu: true,
+            addSetTitle: "Add Set",
+            onAddSet: {
+                withAnimation(.snappy(duration: 0.22, extraBounce: 0)) {
+                    addSet(to: exercise.id)
+                }
+            }
+        ) {
+            Button(exercise.notes.isEmpty && !exercise.notesVisible ? "Add Notes" : "Edit Notes", systemImage: "note.text") {
+                exercises[exerciseIndex].notesVisible = true
             }
 
+            Button("Replace", systemImage: "arrow.triangle.2.circlepath") {
+                activeReplacePicker = ReplaceExerciseContext(id: exercise.id)
+            }
+            Button("Reorder", systemImage: "line.3.horizontal") { }
+            Button("Create superset", systemImage: "link") { }
+
+            Divider()
+
+            Button("Add exercise above", systemImage: "arrow.up") {
+                activeInsertPicker = InsertExerciseContext(
+                    targetExerciseID: exercise.id,
+                    direction: .above
+                )
+            }
+            Button("Add exercise below", systemImage: "arrow.down") {
+                activeInsertPicker = InsertExerciseContext(
+                    targetExerciseID: exercise.id,
+                    direction: .below
+                )
+            }
+
+            Divider()
+
+            Button("Delete Exercise", systemImage: "trash", role: .destructive) {
+                deleteExercise(exercise.id)
+            }
+        } notesContent: {
             if exercise.notesVisible || !exercise.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 TextField("Add routine notes here", text: $exercises[exerciseIndex].notes, axis: .vertical)
                     .lineLimit(nil)
                     .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+                    .padding(.vertical, 8)
+                    .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
                     .focused($focusedField, equals: .notes(exercise.id))
             }
-
-            Button {
-                presentRestPicker(for: exercise.id)
-            } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "timer")
-                    Text("Rest Timer: \(restTimerLabel(exercise.restSeconds))")
-                    Spacer()
-                }
-                .font(.headline)
-                .foregroundStyle(.tint)
-            }
-            .buttonStyle(.plain)
-
-            setTableHeader
-
-            List {
+        } rowsContent: {
+            LazyVStack(spacing: 8) {
                 ForEach(Array(exercises[exerciseIndex].sets.enumerated()), id: \.element.id) { setIndex, set in
-                    Group {
-                        if exercises[exerciseIndex].sets.count > 1 {
-                            setRow(
-                                exerciseIndex: exerciseIndex,
-                                setIndex: setIndex,
-                                exerciseID: exercise.id,
-                                setID: set.id
-                            )
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button("Delete", systemImage: "trash", role: .destructive) {
-                                    deleteSet(exerciseID: exercise.id, setID: set.id)
-                                }
-                            }
-                        } else {
-                            setRow(
-                                exerciseIndex: exerciseIndex,
-                                setIndex: setIndex,
-                                exerciseID: exercise.id,
-                                setID: set.id
-                            )
-                        }
-                    }
-                    .listRowInsets(.init(top: 4, leading: 0, bottom: 4, trailing: 0))
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
+                    setRow(
+                        exerciseIndex: exerciseIndex,
+                        setIndex: setIndex,
+                        exerciseID: exercise.id,
+                        setID: set.id
+                    )
+                    .transition(setRowTransition)
                 }
             }
-            .listStyle(.plain)
-            .scrollDisabled(true)
-            .scrollContentBackground(.hidden)
-            .scrollDismissesKeyboard(.interactively)
-            .frame(height: listHeight(forSetCount: exercises[exerciseIndex].sets.count))
-            .animation(.snappy(duration: 0.2, extraBounce: 0), value: exercises[exerciseIndex].sets.count)
-
-            Button {
-                withAnimation {
-                    addSet(to: exercise.id)
-                }
-            } label: {
-                Label("Add Set", systemImage: "plus")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .foregroundStyle(.primary)
-                    .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
-                    .contentShape(RoundedRectangle(cornerRadius: 16))
-            }
-            .buttonStyle(.plain)
-            .animation(nil, value: exercises[exerciseIndex].sets.count)
+            .animation(.snappy(duration: 0.28, extraBounce: 0.03), value: exercises[exerciseIndex].sets.count)
         }
-        .padding(.horizontal, 16)
-    }
-
-    private var setTableHeader: some View {
-        HStack(spacing: 12) {
-            Text("SET")
-                .frame(width: 44, alignment: .center)
-
-            Text("KG")
-                .frame(maxWidth: .infinity)
-
-            Text("REPS")
-                .frame(maxWidth: .infinity)
-        }
-        .font(.headline)
-        .foregroundStyle(.secondary)
+        .animation(.snappy(duration: 0.22, extraBounce: 0), value: exercise.showsRestTimer)
     }
 
     private func setRow(
@@ -322,43 +286,99 @@ struct AddTemplateView: View {
         exerciseID: UUID,
         setID: UUID
     ) -> some View {
-        HStack(spacing: 12) {
-            Text("\(setIndex + 1)")
-                .font(.title3.weight(.semibold))
-                .frame(width: 44, alignment: .center)
+        HStack(spacing: 10) {
+            Menu {
+                Picker("Set Type", selection: setTypeBinding(exerciseIndex: exerciseIndex, setIndex: setIndex)) {
+                    ForEach(TemplateSetType.menuPrimaryCases, id: \.self) { type in
+                        Label(type.menuTitle, systemImage: type.menuSystemImage)
+                            .tag(type)
+                    }
+                    if setIndex > 0 {
+                        Label(TemplateSetType.drop.menuTitle, systemImage: TemplateSetType.drop.menuSystemImage)
+                            .tag(TemplateSetType.drop)
+                    }
+                }
+
+                if setIndex == 0 {
+                    Section {
+                        Label(TemplateSetType.drop.menuTitle, systemImage: TemplateSetType.drop.menuSystemImage)
+                            .tag(TemplateSetType.drop)
+                            .disabled(true)
+                    }
+                }
+            } label: {
+                setTypeButton(
+                    setNumber: displayedSetNumber(exerciseIndex: exerciseIndex, setIndex: setIndex),
+                    type: exercises[exerciseIndex].sets[setIndex].type
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(
+                setTypeAccessibilityLabel(
+                    exerciseIndex: exerciseIndex,
+                    for: setIndex,
+                    type: exercises[exerciseIndex].sets[setIndex].type
+                )
+            )
 
             TextField("-", text: $exercises[exerciseIndex].sets[setIndex].weightText)
+                .font(.headline.weight(.semibold))
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.center)
-                .padding(.vertical, 10)
                 .padding(.horizontal, 8)
-                .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                .frame(minHeight: 44)
+                .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 9))
                 .focused($focusedField, equals: .weight(exerciseID, setID))
 
             TextField("-", text: $exercises[exerciseIndex].sets[setIndex].repsText)
+                .font(.headline.weight(.semibold))
                 .keyboardType(.numberPad)
                 .multilineTextAlignment(.center)
-                .padding(.vertical, 10)
                 .padding(.horizontal, 8)
-                .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                .frame(minHeight: 44)
+                .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 9))
                 .focused($focusedField, equals: .reps(exerciseID, setID))
-        }
-    }
 
-    private func initialsBadge(for exerciseName: String) -> some View {
-        let initials = initials(from: exerciseName)
-
-        return Circle()
-            .fill(Color(.tertiarySystemBackground))
-            .frame(width: 52, height: 52)
-            .overlay {
-                Text(initials)
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.secondary)
+            if exercises[exerciseIndex].showsRestTimer {
+                Button {
+                    presentRestPicker(for: exerciseID, setID: setID)
+                } label: {
+                    Text(restTimerFieldLabel(for: exercises[exerciseIndex].sets[setIndex].restSeconds))
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(exercises[exerciseIndex].sets[setIndex].restSeconds == nil ? .secondary : .primary)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .padding(.horizontal, 8)
+                        .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 9))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(restFieldAccessibilityLabel(for: exercises[exerciseIndex].sets[setIndex].restSeconds))
             }
+        }
+        .contentShape(Rectangle())
     }
 
-    private func restTimerSheet(for exerciseID: UUID) -> some View {
+    private func setTypeButton(setNumber: Int, type: TemplateSetType) -> some View {
+        ZStack {
+            Circle()
+                .fill(type.rowBackgroundColor)
+
+            Circle()
+                .stroke(type.rowBorderColor, lineWidth: 1)
+
+            if type == .normal {
+                Text("\(setNumber)")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.primary)
+            } else {
+                Image(systemName: type.rowSystemImage)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(type.rowForegroundColor)
+            }
+        }
+        .frame(width: 40, height: 40)
+    }
+
+    private func restTimerSheet(for context: RestPickerContext) -> some View {
         NavigationStack {
             VStack(spacing: 0) {
                 Picker("Rest", selection: $pendingRestSeconds) {
@@ -383,7 +403,7 @@ struct AddTemplateView: View {
 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
-                        applyRestSelection(for: exerciseID)
+                        applyRestSelection(for: context)
                     }
                 }
             }
@@ -393,11 +413,6 @@ struct AddTemplateView: View {
     private var canSave: Bool {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         return !trimmedTitle.isEmpty && !exercises.isEmpty
-    }
-
-    private var isDraftEmpty: Bool {
-        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedTitle.isEmpty && exercises.isEmpty
     }
 
     private var isShowingError: Binding<Bool> {
@@ -412,40 +427,14 @@ struct AddTemplateView: View {
     }
 
     private var selectableExercises: [ExercisePickerItem] {
-        availableExercises.map { exercise in
-            ExercisePickerItem(
-                id: exercise.name,
-                name: exercise.name,
-                bodyPart: ExerciseBodyPart.fromExercise(
-                    name: exercise.name,
-                    storedBodyPart: exercise.bodyPart
-                ),
-                equipment: ExerciseEquipment.infer(
-                    equipment: exercise.equipment,
-                    exerciseName: exercise.name
-                ),
-                mode: ExerciseMode.infer(
-                    equipment: exercise.equipment,
-                    exerciseName: exercise.name
-                )
-            )
-        }
+        availableExercises.map(\.pickerItem)
     }
 
     private func addExercises(_ selectedItems: [ExercisePickerItem]) {
-        var existingIDs = Set(exercises.map(\.catalogExerciseID))
+        var existingIDs = Set(exercises.compactMap(\.exerciseID))
 
         for item in selectedItems where existingIDs.insert(item.id).inserted {
-            exercises.append(
-                TemplateExerciseDraft(
-                    catalogExerciseID: item.id,
-                    name: item.name,
-                    notes: "",
-                    notesVisible: false,
-                    restSeconds: nil,
-                    sets: [.empty]
-                )
-            )
+            exercises.append(makeDraft(for: item))
         }
     }
 
@@ -453,12 +442,21 @@ struct AddTemplateView: View {
         exercises.removeAll { $0.id == exerciseID }
     }
 
-    private func replacementSelectionIDs(for exerciseID: UUID) -> Set<String> {
-        guard let exercise = exercises.first(where: { $0.id == exerciseID }) else {
-            return []
+    private func insertExercise(_ exercise: ExercisePickerItem, around context: InsertExerciseContext) {
+        guard !exercises.contains(where: { $0.exerciseID == exercise.id }),
+              let index = exercises.firstIndex(where: { $0.id == context.targetExerciseID })
+        else {
+            return
         }
 
-        return [exercise.catalogExerciseID]
+        let insertionIndex = switch context.direction {
+        case .above:
+            index
+        case .below:
+            index + 1
+        }
+
+        exercises.insert(makeDraft(for: exercise), at: insertionIndex)
     }
 
     private func replaceExercise(_ targetExerciseID: UUID, with exercise: ExercisePickerItem) {
@@ -466,7 +464,7 @@ struct AddTemplateView: View {
             return
         }
 
-        exercises[index].catalogExerciseID = exercise.id
+        exercises[index].exerciseID = exercise.id
         exercises[index].name = exercise.name
     }
 
@@ -478,7 +476,7 @@ struct AddTemplateView: View {
         exercises[index].sets.append(.empty)
     }
 
-    private func deleteSet(exerciseID: UUID, setID: UUID) {
+    private func deleteSet(exerciseID: UUID, setID: UUID, animated: Bool = false) {
         guard let exerciseIndex = exercises.firstIndex(where: { $0.id == exerciseID }),
               exercises[exerciseIndex].sets.count > 1,
               let setIndex = exercises[exerciseIndex].sets.firstIndex(where: { $0.id == setID })
@@ -486,32 +484,62 @@ struct AddTemplateView: View {
             return
         }
 
-        exercises[exerciseIndex].sets.remove(at: setIndex)
+        let removeSet: () -> Void = {
+            _ = exercises[exerciseIndex].sets.remove(at: setIndex)
+            normalizeSetTypes(for: exerciseIndex)
+        }
+
+        if animated {
+            withAnimation(.snappy(duration: 0.22, extraBounce: 0), removeSet)
+        } else {
+            removeSet()
+        }
     }
 
-    private func listHeight(forSetCount count: Int) -> CGFloat {
-        max(52, CGFloat(count) * 56)
-    }
-
-    private func presentRestPicker(for exerciseID: UUID) {
-        guard let index = exercises.firstIndex(where: { $0.id == exerciseID }) else {
+    private func presentRestPicker(for exerciseID: UUID, setID: UUID) {
+        guard let exerciseIndex = exercises.firstIndex(where: { $0.id == exerciseID }),
+              let setIndex = exercises[exerciseIndex].sets.firstIndex(where: { $0.id == setID })
+        else {
             return
         }
 
-        pendingRestSeconds = exercises[index].restSeconds ?? RestPickerContext.offValue
-        activeRestPicker = RestPickerContext(id: exerciseID)
+        pendingRestSeconds = exercises[exerciseIndex].sets[setIndex].restSeconds ?? RestPickerContext.offValue
+        activeRestPicker = RestPickerContext(exerciseID: exerciseID, setID: setID)
     }
 
-    private func applyRestSelection(for exerciseID: UUID) {
-        guard let index = exercises.firstIndex(where: { $0.id == exerciseID }) else {
+    private func applyRestSelection(for context: RestPickerContext) {
+        guard let exerciseIndex = exercises.firstIndex(where: { $0.id == context.exerciseID }),
+              let setIndex = exercises[exerciseIndex].sets.firstIndex(where: { $0.id == context.setID })
+        else {
             activeRestPicker = nil
             return
         }
 
-        exercises[index].restSeconds = pendingRestSeconds == RestPickerContext.offValue
+        exercises[exerciseIndex].sets[setIndex].restSeconds = pendingRestSeconds == RestPickerContext.offValue
             ? nil
             : pendingRestSeconds
         activeRestPicker = nil
+    }
+
+    private func updateSetType(_ type: TemplateSetType, exerciseIndex: Int, setIndex: Int) {
+        exercises[exerciseIndex].sets[setIndex].type = normalizedSetType(type, for: setIndex)
+    }
+
+    private func setTypeBinding(exerciseIndex: Int, setIndex: Int) -> Binding<TemplateSetType> {
+        Binding(
+            get: { exercises[exerciseIndex].sets[setIndex].type },
+            set: { newValue in
+                updateSetType(newValue, exerciseIndex: exerciseIndex, setIndex: setIndex)
+            }
+        )
+    }
+
+    private func normalizeSetTypes(for exerciseIndex: Int) {
+        exercises[exerciseIndex].sets = exercises[exerciseIndex].sets.enumerated().map { setIndex, set in
+            var normalizedSet = set
+            normalizedSet.type = normalizedSetType(set.type, for: setIndex)
+            return normalizedSet
+        }
     }
 
     private func restTimerLabel(_ seconds: Int?) -> String {
@@ -527,21 +555,102 @@ struct AddTemplateView: View {
         return "\(minutes)m \(remainingSeconds)s"
     }
 
-    private func initials(from name: String) -> String {
-        let words = name
-            .split(whereSeparator: { $0.isWhitespace || $0.isNewline })
-            .prefix(2)
-
-        let joined = words
-            .compactMap { $0.first }
-            .map { String($0) }
-            .joined()
-
-        if joined.isEmpty {
-            return "EX"
+    private func restTimerFieldLabel(for seconds: Int?) -> String {
+        guard let seconds else {
+            return "Off"
         }
 
-        return joined.uppercased()
+        return restTimerLabel(seconds)
+    }
+
+    private func restFieldAccessibilityLabel(for seconds: Int?) -> String {
+        "Rest timer \(restTimerFieldLabel(for: seconds))"
+    }
+
+    private func setTypeAccessibilityLabel(
+        exerciseIndex: Int,
+        for setIndex: Int,
+        type: TemplateSetType
+    ) -> String {
+        "Set \(displayedSetNumber(exerciseIndex: exerciseIndex, setIndex: setIndex)), \(type.menuTitle)"
+    }
+
+    private var exerciseCount: Int {
+        exercises.count
+    }
+
+    private var setCount: Int {
+        exercises.reduce(0) { $0 + $1.sets.count }
+    }
+
+    private var templateSummaryText: String {
+        "\(countText(exerciseCount, singular: "exercise")), \(countText(setCount, singular: "set"))"
+    }
+
+    private var setRowTransition: AnyTransition {
+        .asymmetric(
+            insertion: .opacity.combined(with: .scale(scale: 0.98, anchor: .top)),
+            removal: .opacity.combined(with: .scale(scale: 0.94, anchor: .top))
+        )
+    }
+
+    private func countText(_ count: Int, singular: String) -> String {
+        count == 1 ? "1 \(singular)" : "\(count) \(singular)s"
+    }
+
+    private func exerciseEquipmentText(for exercise: TemplateExerciseDraft) -> String? {
+        if let catalogExercise = catalogExercise(for: exercise.exerciseID) {
+            let trimmedEquipment = catalogExercise.equipment.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedEquipment.isEmpty {
+                return trimmedEquipment
+            }
+        }
+
+        let inferredEquipment = ExerciseEquipment.infer(
+            equipment: "",
+            exerciseName: exercise.name
+        )
+
+        return inferredEquipment == .other ? nil : inferredEquipment.rawValue
+    }
+
+    private func makeDraft(for exercise: ExercisePickerItem) -> TemplateExerciseDraft {
+        TemplateExerciseDraft(
+            exerciseID: exercise.id,
+            name: exercise.name,
+            notes: "",
+            notesVisible: false,
+            showsRestTimer: false,
+            sets: [.empty]
+        )
+    }
+
+    private func catalogExercise(for exerciseID: PersistentIdentifier?) -> Exercise? {
+        guard let exerciseID else {
+            return nil
+        }
+
+        return availableExercises.first { $0.persistentModelID == exerciseID }
+    }
+
+    private func normalizedSetType(_ type: TemplateSetType, for setIndex: Int) -> TemplateSetType {
+        if setIndex == 0, type == .drop {
+            return .normal
+        }
+
+        return type
+    }
+
+    private func displayedSetNumber(exerciseIndex: Int, setIndex: Int) -> Int {
+        let countedSets = exercises[exerciseIndex].sets
+            .prefix(setIndex + 1)
+            .reduce(into: 0) { partialResult, set in
+                if set.type.countsTowardDisplayedSetNumber {
+                    partialResult += 1
+                }
+            }
+
+        return max(countedSets, 1)
     }
 
     private func saveTemplate() {
@@ -556,7 +665,6 @@ struct AddTemplateView: View {
         }
 
         let template = existingTemplate ?? WorkoutTemplate(name: trimmedTitle)
-        let exerciseByName = Dictionary(uniqueKeysWithValues: availableExercises.map { ($0.name, $0) })
 
         guard exercises.allSatisfy({ exerciseByName[$0.catalogExerciseID] != nil }) else {
             errorMessage = "One or more selected exercises are no longer available."
@@ -580,10 +688,10 @@ struct AddTemplateView: View {
                 position: index + 1,
                 targetSets: max(exerciseDraft.sets.count, 1),
                 targetReps: overallRepTarget(for: exerciseDraft.sets),
-                restSeconds: exerciseDraft.restSeconds ?? 0,
+                restSeconds: overallRestDuration(for: exerciseDraft.sets),
                 notes: exerciseDraft.notes,
                 template: template,
-                exercise: exerciseByName[exerciseDraft.catalogExerciseID]
+                exercise: catalogExercise(for: exerciseDraft.exerciseID)
             )
 
             templateExercise.prescribedSets = exerciseDraft.sets.enumerated().map { setIndex, setDraft in
@@ -594,6 +702,8 @@ struct AddTemplateView: View {
                     targetReps: parsedRepTarget.exact,
                     targetRepMin: parsedRepTarget.min,
                     targetRepMax: parsedRepTarget.max,
+                    restSeconds: setDraft.restSeconds ?? 0,
+                    typeRawValue: normalizedSetType(setDraft.type, for: setIndex).rawValue,
                     templateExercise: templateExercise
                 )
             }
@@ -642,6 +752,16 @@ struct AddTemplateView: View {
         return values.allSatisfy { $0 == first } ? first : "Variable"
     }
 
+    private func overallRestDuration(for sets: [TemplateSetDraft]) -> Int {
+        let values = sets.compactMap(\.restSeconds).filter { $0 > 0 }
+
+        guard let first = values.first, values.count == sets.count else {
+            return 0
+        }
+
+        return values.allSatisfy { $0 == first } ? first : 0
+    }
+
     private func parseWeight(_ text: String) -> Double? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -676,7 +796,7 @@ struct AddTemplateView: View {
     }
 
     private func cancelTapped() {
-        if isDraftEmpty {
+        if exercises.isEmpty {
             dismiss()
         } else {
             isShowingDiscardAlert = true
@@ -697,48 +817,63 @@ private enum FocusField: Hashable {
 
 private struct TemplateExerciseDraft: Identifiable {
     let id: UUID
-    var catalogExerciseID: String
+    var exerciseID: PersistentIdentifier?
     var name: String
     var notes: String
     var notesVisible: Bool
-    var restSeconds: Int?
+    var showsRestTimer: Bool
     var sets: [TemplateSetDraft]
 
     init(
         id: UUID = UUID(),
-        catalogExerciseID: String,
+        exerciseID: PersistentIdentifier?,
         name: String,
         notes: String,
         notesVisible: Bool,
-        restSeconds: Int?,
+        showsRestTimer: Bool,
         sets: [TemplateSetDraft]
     ) {
         self.id = id
-        self.catalogExerciseID = catalogExerciseID
+        self.exerciseID = exerciseID
         self.name = name
         self.notes = notes
         self.notesVisible = notesVisible
-        self.restSeconds = restSeconds
+        self.showsRestTimer = showsRestTimer
         self.sets = sets
     }
 
     init(templateExercise: TemplateExercise) {
-        let catalogExerciseID = templateExercise.exercise?.name ?? templateExercise.displayName
+        let exerciseID = templateExercise.exercise?.persistentModelID
+        let fallbackRestSeconds = templateExercise.restSeconds == 0 ? nil : templateExercise.restSeconds
+        let sets: [TemplateSetDraft]
+
+        if templateExercise.sortedPrescribedSets.isEmpty {
+            sets = (0..<max(templateExercise.targetSets, 1)).map { setIndex in
+                TemplateSetDraft(
+                    repsText: templateExercise.targetReps
+                        .trimmingCharacters(in: .whitespacesAndNewlines),
+                    restSeconds: fallbackRestSeconds,
+                    type: .normal
+                )
+            }
+        } else {
+            sets = templateExercise.sortedPrescribedSets.enumerated().map { setIndex, set in
+                TemplateSetDraft(
+                    weightText: set.displayWeightText,
+                    repsText: set.displayRepText,
+                    restSeconds: set.effectiveRestSeconds == 0 ? nil : set.effectiveRestSeconds,
+                    type: setIndex == 0 && set.setType == .drop ? .normal : set.setType
+                )
+            }
+        }
 
         self.init(
-            catalogExerciseID: catalogExerciseID,
+            exerciseID: exerciseID,
             name: templateExercise.displayName,
             notes: templateExercise.notes,
             notesVisible: !templateExercise.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-            restSeconds: templateExercise.restSeconds == 0 ? nil : templateExercise.restSeconds,
-            sets: templateExercise.sortedPrescribedSets.isEmpty
-                ? Array(repeating: TemplateSetDraft(repsText: templateExercise.displayRepTargetText), count: max(templateExercise.targetSets, 1))
-                : templateExercise.sortedPrescribedSets.map {
-                    TemplateSetDraft(
-                        weightText: $0.displayWeightText,
-                        repsText: $0.displayRepText
-                    )
-                }
+            showsRestTimer: sets.contains { $0.restSeconds != nil },
+            sets: sets
         )
     }
 }
@@ -747,11 +882,21 @@ private struct TemplateSetDraft: Identifiable {
     let id: UUID
     var weightText: String
     var repsText: String
+    var restSeconds: Int?
+    var type: TemplateSetType
 
-    init(id: UUID = UUID(), weightText: String = "", repsText: String = "") {
+    init(
+        id: UUID = UUID(),
+        weightText: String = "",
+        repsText: String = "",
+        restSeconds: Int? = nil,
+        type: TemplateSetType = .normal
+    ) {
         self.id = id
         self.weightText = weightText
         self.repsText = repsText
+        self.restSeconds = restSeconds
+        self.type = type
     }
 
     static var empty: TemplateSetDraft {
@@ -763,22 +908,50 @@ private struct RestPickerContext: Identifiable {
     static let offValue = -1
     static let values = Array(stride(from: 5, through: 300, by: 5))
 
-    let id: UUID
+    let exerciseID: UUID
+    let setID: UUID
+
+    var id: UUID { setID }
 }
 
 private struct ReplaceExerciseContext: Identifiable {
     let id: UUID
 }
 
-#Preview {
-    NavigationStack {
-        AddTemplateView()
+private struct InsertExerciseContext: Identifiable {
+    let targetExerciseID: UUID
+    let direction: InsertExerciseDirection
+
+    var id: String {
+        "\(targetExerciseID.uuidString)-\(direction.rawValue)"
     }
-    .modelContainer(AddTemplateViewPreview.container)
+}
+
+private enum InsertExerciseDirection: String {
+    case above
+    case below
+}
+
+#Preview("Filled Template") {
+    AddTemplateSheetPreview(template: AddTemplateViewPreview.sampleTemplate)
+    .modelContainer(AddTemplateViewPreview.filledContainer)
+}
+
+#Preview("Empty Template") {
+    AddTemplateSheetPreview()
+    .modelContainer(AddTemplateViewPreview.emptyContainer)
 }
 
 private enum AddTemplateViewPreview {
-    static let container: ModelContainer = {
+    static let filledContainer = makeContainer(includeSampleTemplate: true)
+    static let emptyContainer = makeContainer(includeSampleTemplate: false)
+
+    static var sampleTemplate: WorkoutTemplate {
+        let descriptor = FetchDescriptor<WorkoutTemplate>(sortBy: [SortDescriptor(\.createdAt)])
+        return try! filledContainer.mainContext.fetch(descriptor).first!
+    }
+
+    private static func makeContainer(includeSampleTemplate: Bool) -> ModelContainer {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try! ModelContainer(
             for: Exercise.self,
@@ -787,7 +960,83 @@ private enum AddTemplateViewPreview {
             TemplateExerciseSet.self,
             configurations: configuration
         )
-        try! SeedData.seedIfNeeded(in: container.mainContext)
+        let context = container.mainContext
+        try! SeedData.seedIfNeeded(in: context)
+
+        guard includeSampleTemplate else {
+            return container
+        }
+
+        let descriptor = FetchDescriptor<Exercise>(sortBy: [SortDescriptor(\.name)])
+        let exercises = try! context.fetch(descriptor)
+        let previewExercises = Array(exercises.prefix(2))
+
+        let template = WorkoutTemplate(name: "Leg Day")
+        context.insert(template)
+
+        template.exercises = previewExercises.enumerated().map { index, exercise in
+            let templateExercise = TemplateExercise(
+                position: index + 1,
+                targetSets: 3,
+                targetReps: index == 0 ? "8" : "10",
+                restSeconds: index == 0 ? 90 : 75,
+                notes: index == 0 ? "Controlled eccentric" : "",
+                template: template,
+                exercise: exercise
+            )
+
+            templateExercise.prescribedSets = [
+                TemplateExerciseSet(
+                    position: 1,
+                    prescribedWeight: index == 0 ? 60 : 140,
+                    targetReps: index == 0 ? 8 : 10,
+                    restSeconds: index == 0 ? 90 : 75,
+                    typeRawValue: TemplateSetType.normal.rawValue,
+                    templateExercise: templateExercise
+                ),
+                TemplateExerciseSet(
+                    position: 2,
+                    prescribedWeight: index == 0 ? 60 : 140,
+                    targetReps: index == 0 ? 8 : 10,
+                    restSeconds: index == 0 ? 90 : 75,
+                    typeRawValue: index == 0 ? TemplateSetType.warmUp.rawValue : TemplateSetType.failure.rawValue,
+                    templateExercise: templateExercise
+                ),
+                TemplateExerciseSet(
+                    position: 3,
+                    prescribedWeight: index == 0 ? 62.5 : 145,
+                    targetReps: index == 0 ? 8 : 8,
+                    restSeconds: index == 0 ? 90 : 75,
+                    typeRawValue: TemplateSetType.normal.rawValue,
+                    templateExercise: templateExercise
+                )
+            ]
+
+            context.insert(templateExercise)
+            templateExercise.prescribedSets.forEach(context.insert)
+            return templateExercise
+        }
+
+        try! context.save()
         return container
-    }()
+    }
+}
+
+private struct AddTemplateSheetPreview: View {
+    let template: WorkoutTemplate?
+
+    @State private var isPresented = true
+
+    init(template: WorkoutTemplate? = nil) {
+        self.template = template
+    }
+
+    var body: some View {
+        Color(.systemGroupedBackground)
+            .sheet(isPresented: $isPresented) {
+                NavigationStack {
+                    AddTemplateView(template: template)
+                }
+            }
+    }
 }

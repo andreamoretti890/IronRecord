@@ -3,10 +3,10 @@ import SwiftUI
 
 struct TemplateRowView: View {
     let template: WorkoutTemplate
-    let onStartTapped: () -> Void
     let onEditTapped: () -> Void
     let onDuplicateTapped: () -> Void
     let onDeleteTapped: () -> Void
+    let onStartTapped: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -41,7 +41,7 @@ struct TemplateRowView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
                 .truncationMode(.tail)
-
+            
             Button("Start Template") {
                 onStartTapped()
             }
@@ -58,10 +58,10 @@ struct TemplateRowView: View {
         if let template = TemplateRowPreview.sampleTemplate {
             TemplateRowView(
                 template: template,
-                onStartTapped: {},
                 onEditTapped: {},
                 onDuplicateTapped: {},
-                onDeleteTapped: {}
+                onDeleteTapped: {},
+                onStartTapped: {}
             )
             .padding()
         }
@@ -71,14 +71,7 @@ struct TemplateRowView: View {
 
 private enum TemplateRowPreview {
     static let container: ModelContainer = {
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try! ModelContainer(
-            for: Exercise.self,
-            WorkoutTemplate.self,
-            TemplateExercise.self,
-            TemplateExerciseSet.self,
-            configurations: configuration
-        )
+        let container = IronRecordModelContainer.makeContainer(inMemory: true)
         try! SeedData.seedIfNeeded(in: container.mainContext)
         return container
     }()
