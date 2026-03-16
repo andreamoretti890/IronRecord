@@ -23,7 +23,6 @@ struct TemplateRowView: View {
                     Button("Duplicate", systemImage: "square.on.square") {
                         onDuplicateTapped()
                     }
-                    Divider()
                     Button("Delete", systemImage: "trash", role: .destructive) {
                         onDeleteTapped()
                     }
