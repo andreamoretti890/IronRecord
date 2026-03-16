@@ -33,6 +33,7 @@ enum SeedData {
                 // Keep starter exercises pinned to the canonical seed taxonomy.
                 exercise.bodyPart = seed.bodyPart
                 exercise.category = seed.category
+                exercise.equipment = seed.equipment
             } else if exercise.bodyPart.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 exercise.bodyPart = "Others"
             }
