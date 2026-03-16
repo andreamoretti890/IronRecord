@@ -22,7 +22,7 @@ struct ActiveWorkoutView: View {
                         session: session,
                         exercise: exercise,
                         isPaused: session.state == .paused,
-                        onSave: saveChanges,
+                        onSave: persistChanges,
                         onToggleDone: { sessionSet, isCompleted in
                             toggleCompletion(
                                 for: sessionSet,
@@ -151,8 +151,13 @@ struct ActiveWorkoutView: View {
 
     private func finishWorkout() {
         session.finish()
-        saveChanges()
-        dismiss()
+        if saveChanges() {
+            dismiss()
+        }
+    }
+
+    private func persistChanges() {
+        _ = saveChanges()
     }
 
     private func discardWorkout() {
@@ -166,11 +171,14 @@ struct ActiveWorkoutView: View {
         }
     }
 
-    private func saveChanges() {
+    @discardableResult
+    private func saveChanges() -> Bool {
         do {
             try modelContext.save()
+            return true
         } catch {
             errorMessage = error.localizedDescription
+            return false
         }
     }
 }

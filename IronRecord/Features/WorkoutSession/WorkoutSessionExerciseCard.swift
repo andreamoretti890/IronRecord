@@ -200,7 +200,12 @@ struct WorkoutSessionExerciseCard: View {
             return
         }
 
-        session.clearActiveRest()
+        let deletedSetPositions = Set(exercise.sortedSets.map(\.position))
+        if let activeRestIdentifier = session.activeRestIdentifier,
+           activeRestIdentifier.exercisePosition == exercise.position,
+           deletedSetPositions.contains(activeRestIdentifier.setPosition) {
+            session.clearActiveRest()
+        }
         session.exercises.removeAll { $0.persistentModelID == exercise.persistentModelID }
         modelContext.delete(exercise)
         normalizeExercisePositions(in: session)

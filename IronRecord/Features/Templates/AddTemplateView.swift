@@ -10,6 +10,7 @@ struct AddTemplateView: View {
 
     private let existingTemplate: WorkoutTemplate?
     private let isEditingMode: Bool
+    private let initialSnapshot: TemplateDraftSnapshot
 
     @State private var title = ""
     @State private var exercises: [TemplateExerciseDraft] = []
@@ -32,9 +33,15 @@ struct AddTemplateView: View {
             initialTitle = template?.name ?? "New Workout"
         }
 
+        let initialExercises = template?.sortedExercises.map(TemplateExerciseDraft.init(templateExercise:)) ?? []
+
         _title = State(initialValue: initialTitle)
         _exercises = State(
-            initialValue: template?.sortedExercises.map(TemplateExerciseDraft.init(templateExercise:)) ?? []
+            initialValue: initialExercises
+        )
+        initialSnapshot = TemplateDraftSnapshot(
+            title: initialTitle,
+            exercises: initialExercises.map(TemplateExerciseSnapshot.init)
         )
     }
 
@@ -791,7 +798,7 @@ struct AddTemplateView: View {
     }
 
     private func cancelTapped() {
-        if exercises.isEmpty {
+        if !hasUnsavedChanges {
             dismiss()
         } else {
             isShowingDiscardAlert = true
@@ -800,6 +807,13 @@ struct AddTemplateView: View {
 
     private func dismissKeyboard() {
         focusedField = nil
+    }
+
+    private var hasUnsavedChanges: Bool {
+        TemplateDraftSnapshot(
+            title: title,
+            exercises: exercises.map(TemplateExerciseSnapshot.init)
+        ) != initialSnapshot
     }
 }
 
@@ -873,6 +887,27 @@ private struct TemplateExerciseDraft: Identifiable {
     }
 }
 
+private struct TemplateDraftSnapshot: Equatable {
+    let title: String
+    let exercises: [TemplateExerciseSnapshot]
+}
+
+private struct TemplateExerciseSnapshot: Equatable {
+    let exerciseID: PersistentIdentifier?
+    let name: String
+    let notes: String
+    let showsRestTimer: Bool
+    let sets: [TemplateSetSnapshot]
+
+    init(_ draft: TemplateExerciseDraft) {
+        exerciseID = draft.exerciseID
+        name = draft.name
+        notes = draft.notes
+        showsRestTimer = draft.showsRestTimer
+        sets = draft.sets.map(TemplateSetSnapshot.init)
+    }
+}
+
 private struct TemplateSetDraft: Identifiable {
     let id: UUID
     var weightText: String
@@ -896,6 +931,20 @@ private struct TemplateSetDraft: Identifiable {
 
     static var empty: TemplateSetDraft {
         TemplateSetDraft()
+    }
+}
+
+private struct TemplateSetSnapshot: Equatable {
+    let weightText: String
+    let repsText: String
+    let restSeconds: Int?
+    let type: TemplateSetType
+
+    init(_ draft: TemplateSetDraft) {
+        weightText = draft.weightText
+        repsText = draft.repsText
+        restSeconds = draft.restSeconds
+        type = draft.type
     }
 }
 
