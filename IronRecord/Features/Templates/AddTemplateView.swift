@@ -17,6 +17,7 @@ struct AddTemplateView: View {
     @State private var activeRestPicker: RestPickerContext?
     @State private var activeReplacePicker: ReplaceExerciseContext?
     @State private var activeInsertPicker: InsertExerciseContext?
+    @State private var isShowingReorderSheet = false
     @State private var pendingRestSeconds = RestPickerContext.offValue
     @State private var isShowingDiscardAlert = false
     @State private var errorMessage: String?
@@ -88,6 +89,24 @@ struct AddTemplateView: View {
                     cancelTapped()
                 }
             }
+            
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("Reorder exercise", systemImage: "arrow.up.arrow.down") {
+                        isShowingReorderSheet = true
+                    }
+                    .disabled(exercises.isEmpty)
+
+                    Button("Settings", systemImage: "gearshape") { }
+                        .disabled(true)
+                    
+                    Button("Delete", systemImage: "trash", role: .destructive) { }
+                        .disabled(true)
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .accessibilityLabel("Template settings")
+            }
 
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
@@ -146,6 +165,15 @@ struct AddTemplateView: View {
                     }
                 )
             }
+        }
+        .sheet(isPresented: $isShowingReorderSheet) {
+            TemplateExerciseReorderSheet(
+                exercises: exercises,
+                onSave: { reorderedExercises in
+                    exercises = reorderedExercises
+                    isShowingReorderSheet = false
+                }
+            )
         }
         .alert("Discard Template?", isPresented: $isShowingDiscardAlert) {
             Button("Keep Editing", role: .cancel) { }
@@ -238,7 +266,6 @@ struct AddTemplateView: View {
             Button("Replace", systemImage: "arrow.triangle.2.circlepath") {
                 activeReplacePicker = ReplaceExerciseContext(id: exercise.id)
             }
-            Button("Reorder", systemImage: "line.3.horizontal") { }
             Button("Create superset", systemImage: "link") { }
 
             Divider()
@@ -625,6 +652,7 @@ struct AddTemplateView: View {
         TemplateExerciseDraft(
             exerciseID: exercise.id,
             name: exercise.name,
+            equipment: exercise.equipment.rawValue,
             notes: "",
             notesVisible: false,
             showsRestTimer: false,
@@ -824,10 +852,11 @@ private enum FocusField: Hashable {
     case reps(UUID, UUID)
 }
 
-private struct TemplateExerciseDraft: Identifiable {
+struct TemplateExerciseDraft: Identifiable {
     let id: UUID
     var exerciseID: PersistentIdentifier?
     var name: String
+    var equipment: String
     var notes: String
     var notesVisible: Bool
     var showsRestTimer: Bool
@@ -837,6 +866,7 @@ private struct TemplateExerciseDraft: Identifiable {
         id: UUID = UUID(),
         exerciseID: PersistentIdentifier?,
         name: String,
+        equipment: String,
         notes: String,
         notesVisible: Bool,
         showsRestTimer: Bool,
@@ -845,6 +875,7 @@ private struct TemplateExerciseDraft: Identifiable {
         self.id = id
         self.exerciseID = exerciseID
         self.name = name
+        self.equipment = equipment
         self.notes = notes
         self.notesVisible = notesVisible
         self.showsRestTimer = showsRestTimer
@@ -879,6 +910,7 @@ private struct TemplateExerciseDraft: Identifiable {
         self.init(
             exerciseID: exerciseID,
             name: templateExercise.displayName,
+            equipment: templateExercise.exercise?.equipment ?? "",
             notes: templateExercise.notes,
             notesVisible: !templateExercise.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
             showsRestTimer: sets.contains { $0.restSeconds != nil },
@@ -908,7 +940,7 @@ private struct TemplateExerciseSnapshot: Equatable {
     }
 }
 
-private struct TemplateSetDraft: Identifiable {
+struct TemplateSetDraft: Identifiable {
     let id: UUID
     var weightText: String
     var repsText: String
