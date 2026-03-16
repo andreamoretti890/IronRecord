@@ -78,7 +78,9 @@ enum SeedData {
             )
         }
 
-        try context.save()
+        if context.hasChanges {
+            try context.save()
+        }
     }
 }
 
