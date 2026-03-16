@@ -112,6 +112,7 @@ struct AddTemplateView: View {
                     exercises: selectableExercises,
                     initiallySelectedIDs: [],
                     selectionMode: .single,
+                    allowsCustomExerciseCreation: true,
                     actionTitle: "Replace",
                     onAddSelected: { selectedExerciseItems in
                         guard let selectedExercise = selectedExerciseItems.first else {
@@ -128,6 +129,7 @@ struct AddTemplateView: View {
                     exercises: selectableExercises,
                     initiallySelectedIDs: [],
                     selectionMode: .single,
+                    allowsCustomExerciseCreation: true,
                     actionTitle: "Add",
                     onAddSelected: { selectedExerciseItems in
                         guard let selectedExercise = selectedExerciseItems.first else {
@@ -186,7 +188,8 @@ struct AddTemplateView: View {
         NavigationLink {
             ExercisePickerView(
                 exercises: selectableExercises,
-                initiallySelectedIDs: Set(exercises.map(\.catalogExerciseID)),
+                initiallySelectedIDs: Set(exercises.compactMap(\.exerciseID)),
+                allowsCustomExerciseCreation: true,
                 onAddSelected: { selectedExerciseItems in
                     addExercises(selectedExerciseItems)
                 }
@@ -424,28 +427,11 @@ struct AddTemplateView: View {
     }
 
     private var selectableExercises: [ExercisePickerItem] {
-        availableExercises.map { exercise in
-            ExercisePickerItem(
-                id: exercise.name,
-                name: exercise.name,
-                bodyPart: ExerciseBodyPart.fromExercise(
-                    name: exercise.name,
-                    storedBodyPart: exercise.bodyPart
-                ),
-                equipment: ExerciseEquipment.infer(
-                    equipment: exercise.equipment,
-                    exerciseName: exercise.name
-                ),
-                mode: ExerciseMode.infer(
-                    equipment: exercise.equipment,
-                    exerciseName: exercise.name
-                )
-            )
-        }
+        availableExercises.map(\.pickerItem)
     }
 
     private func addExercises(_ selectedItems: [ExercisePickerItem]) {
-        var existingIDs = Set(exercises.map(\.catalogExerciseID))
+        var existingIDs = Set(exercises.compactMap(\.exerciseID))
 
         for item in selectedItems where existingIDs.insert(item.id).inserted {
             exercises.append(makeDraft(for: item))
@@ -457,7 +443,7 @@ struct AddTemplateView: View {
     }
 
     private func insertExercise(_ exercise: ExercisePickerItem, around context: InsertExerciseContext) {
-        guard !exercises.contains(where: { $0.catalogExerciseID == exercise.id }),
+        guard !exercises.contains(where: { $0.exerciseID == exercise.id }),
               let index = exercises.firstIndex(where: { $0.id == context.targetExerciseID })
         else {
             return
@@ -478,7 +464,7 @@ struct AddTemplateView: View {
             return
         }
 
-        exercises[index].catalogExerciseID = exercise.id
+        exercises[index].exerciseID = exercise.id
         exercises[index].name = exercise.name
     }
 
@@ -613,9 +599,7 @@ struct AddTemplateView: View {
     }
 
     private func exerciseEquipmentText(for exercise: TemplateExerciseDraft) -> String? {
-        if let catalogExercise = availableExercises.first(where: {
-            $0.name == exercise.catalogExerciseID || $0.name == exercise.name
-        }) {
+        if let catalogExercise = catalogExercise(for: exercise.exerciseID) {
             let trimmedEquipment = catalogExercise.equipment.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmedEquipment.isEmpty {
                 return trimmedEquipment
@@ -632,13 +616,21 @@ struct AddTemplateView: View {
 
     private func makeDraft(for exercise: ExercisePickerItem) -> TemplateExerciseDraft {
         TemplateExerciseDraft(
-            catalogExerciseID: exercise.id,
+            exerciseID: exercise.id,
             name: exercise.name,
             notes: "",
             notesVisible: false,
             showsRestTimer: false,
             sets: [.empty]
         )
+    }
+
+    private func catalogExercise(for exerciseID: PersistentIdentifier?) -> Exercise? {
+        guard let exerciseID else {
+            return nil
+        }
+
+        return availableExercises.first { $0.persistentModelID == exerciseID }
     }
 
     private func normalizedSetType(_ type: TemplateSetType, for setIndex: Int) -> TemplateSetType {
@@ -673,7 +665,6 @@ struct AddTemplateView: View {
         }
 
         let template = existingTemplate ?? WorkoutTemplate(name: trimmedTitle)
-        let exerciseByName = Dictionary(uniqueKeysWithValues: availableExercises.map { ($0.name, $0) })
 
         template.name = trimmedTitle
 
@@ -695,7 +686,7 @@ struct AddTemplateView: View {
                 restSeconds: overallRestDuration(for: exerciseDraft.sets),
                 notes: exerciseDraft.notes,
                 template: template,
-                exercise: exerciseByName[exerciseDraft.catalogExerciseID]
+                exercise: catalogExercise(for: exerciseDraft.exerciseID)
             )
 
             templateExercise.prescribedSets = exerciseDraft.sets.enumerated().map { setIndex, setDraft in
@@ -821,7 +812,7 @@ private enum FocusField: Hashable {
 
 private struct TemplateExerciseDraft: Identifiable {
     let id: UUID
-    var catalogExerciseID: String
+    var exerciseID: PersistentIdentifier?
     var name: String
     var notes: String
     var notesVisible: Bool
@@ -830,7 +821,7 @@ private struct TemplateExerciseDraft: Identifiable {
 
     init(
         id: UUID = UUID(),
-        catalogExerciseID: String,
+        exerciseID: PersistentIdentifier?,
         name: String,
         notes: String,
         notesVisible: Bool,
@@ -838,7 +829,7 @@ private struct TemplateExerciseDraft: Identifiable {
         sets: [TemplateSetDraft]
     ) {
         self.id = id
-        self.catalogExerciseID = catalogExerciseID
+        self.exerciseID = exerciseID
         self.name = name
         self.notes = notes
         self.notesVisible = notesVisible
@@ -847,7 +838,7 @@ private struct TemplateExerciseDraft: Identifiable {
     }
 
     init(templateExercise: TemplateExercise) {
-        let catalogExerciseID = templateExercise.exercise?.name ?? templateExercise.displayName
+        let exerciseID = templateExercise.exercise?.persistentModelID
         let fallbackRestSeconds = templateExercise.restSeconds == 0 ? nil : templateExercise.restSeconds
         let sets: [TemplateSetDraft]
 
@@ -872,7 +863,7 @@ private struct TemplateExerciseDraft: Identifiable {
         }
 
         self.init(
-            catalogExerciseID: catalogExerciseID,
+            exerciseID: exerciseID,
             name: templateExercise.displayName,
             notes: templateExercise.notes,
             notesVisible: !templateExercise.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
