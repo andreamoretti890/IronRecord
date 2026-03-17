@@ -427,30 +427,15 @@ private enum ExercisePickerSheet: Identifiable {
 
 #Preview("Standard Flow") {
     TemplateExercisePickerPreviewHost()
-        .modelContainer(TemplateExercisePickerPreview.container)
-}
-
-private enum TemplateExercisePickerPreview {
-    static let container: ModelContainer = {
-        let container = IronRecordModelContainer.makeContainer(inMemory: true)
-        try! SeedData.seedIfNeeded(in: container.mainContext)
-        return container
-    }()
-
-    static var items: [ExercisePickerItem] {
-        let descriptor = FetchDescriptor<Exercise>(sortBy: [SortDescriptor(\.name)])
-        let exercises = try! container.mainContext.fetch(descriptor)
-
-        return exercises.map(\.pickerItem)
-    }
+        .modelContainer(IronRecordPreview.container)
 }
 
 private struct TemplateExercisePickerPreviewHost: View {
     var body: some View {
         NavigationStack {
             ExercisePickerView(
-                exercises: TemplateExercisePickerPreview.items,
-                initiallySelectedIDs: Set(TemplateExercisePickerPreview.items.prefix(1).map(\.id)),
+                exercises: IronRecordPreview.exerciseItems,
+                initiallySelectedIDs: Set(IronRecordPreview.exerciseItems.prefix(1).map(\.id)),
                 allowsCustomExerciseCreation: true,
                 onAddSelected: { _ in }
             )

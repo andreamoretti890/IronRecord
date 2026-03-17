@@ -15,10 +15,10 @@ struct AddTemplateView: View {
     @State private var title = ""
     @State private var exercises: [TemplateExerciseDraft] = []
     @State private var activeRestPicker: RestPickerContext?
-    @State private var activeReplacePicker: ReplaceExerciseContext?
-    @State private var activeInsertPicker: InsertExerciseContext?
+    @State private var activeExercisePicker: ActiveExercisePicker?
     @State private var isShowingReorderSheet = false
     @State private var pendingRestSeconds = RestPickerContext.offValue
+    @State private var templatePendingDeletion: WorkoutTemplate?
     @State private var isShowingDiscardAlert = false
     @State private var errorMessage: String?
     @FocusState private var focusedField: FocusField?
@@ -47,31 +47,7 @@ struct AddTemplateView: View {
     }
 
     var body: some View {
-        Group {
-            if exercises.isEmpty {
-                VStack(alignment: .leading, spacing: 24) {
-                    titleCard
-                    Spacer(minLength: 0)
-                    emptyExercisesView
-                    Spacer(minLength: 0)
-                }
-                .padding(.vertical, 12)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 14) {
-                        titleCard
-
-                        ForEach(exercises.enumerated(), id: \.element.id) { index, exercise in
-                            exerciseCard(exerciseIndex: index, exercise: exercise)
-                        }
-
-                        addExerciseLink
-                    }
-                    .padding(.vertical, 12)
-                }
-            }
-        }
+        content
         .scrollDismissesKeyboard(.interactively)
         .background {
             Color.clear
@@ -83,98 +59,14 @@ struct AddTemplateView: View {
         .navigationTitle(isEditingMode ? "Edit Template" : "Add Template")
         .navigationBarTitleDisplayMode(.inline)
         .interactiveDismissDisabled()
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") {
-                    cancelTapped()
-                }
-            }
-            
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button("Reorder exercise", systemImage: "arrow.up.arrow.down") {
-                        isShowingReorderSheet = true
-                    }
-                    .disabled(exercises.isEmpty)
-
-                    Button("Settings", systemImage: "gearshape") { }
-                        .disabled(true)
-                    
-                    Button("Delete", systemImage: "trash", role: .destructive) { }
-                        .disabled(true)
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-                .accessibilityLabel("Template settings")
-            }
-
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Save") {
-                    saveTemplate()
-                }
-                .disabled(!canSave)
-            }
-
-            ToolbarItemGroup(placement: .keyboard) {
-                if focusedField != nil {
-                    Spacer()
-                    Button {
-                        dismissKeyboard()
-                    } label: {
-                        Image(systemName: "keyboard.chevron.compact.down")
-                    }
-                    .accessibilityLabel("Hide keyboard")
-                }
-            }
-        }
+        .toolbar { toolbarContent }
         .sheet(item: $activeRestPicker) { context in
             restTimerSheet(for: context)
                 .presentationDetents([.height(280)])
                 .presentationDragIndicator(.visible)
         }
-        .sheet(item: $activeReplacePicker) { context in
-            NavigationStack {
-                ExercisePickerView(
-                    exercises: selectableExercises,
-                    initiallySelectedIDs: [],
-                    selectionMode: .single,
-                    allowsCustomExerciseCreation: true,
-                    actionTitle: "Replace",
-                    onAddSelected: { selectedExerciseItems in
-                        guard let selectedExercise = selectedExerciseItems.first else {
-                            return
-                        }
-                        replaceExercise(context.id, with: selectedExercise)
-                    }
-                )
-            }
-        }
-        .sheet(item: $activeInsertPicker) { context in
-            NavigationStack {
-                ExercisePickerView(
-                    exercises: selectableExercises,
-                    initiallySelectedIDs: [],
-                    selectionMode: .single,
-                    allowsCustomExerciseCreation: true,
-                    actionTitle: "Add",
-                    onAddSelected: { selectedExerciseItems in
-                        guard let selectedExercise = selectedExerciseItems.first else {
-                            return
-                        }
-                        insertExercise(selectedExercise, around: context)
-                    }
-                )
-            }
-        }
-        .sheet(isPresented: $isShowingReorderSheet) {
-            TemplateExerciseReorderSheet(
-                exercises: exercises,
-                onSave: { reorderedExercises in
-                    exercises = reorderedExercises
-                    isShowingReorderSheet = false
-                }
-            )
-        }
+        .sheet(item: $activeExercisePicker, content: exercisePickerSheet)
+        .sheet(isPresented: $isShowingReorderSheet, content: reorderSheet)
         .alert("Discard Template?", isPresented: $isShowingDiscardAlert) {
             Button("Keep Editing", role: .cancel) { }
             Button("Discard", role: .destructive) {
@@ -183,6 +75,20 @@ struct AddTemplateView: View {
         } message: {
             Text("You have unsaved changes. Are you sure you want to discard this template?")
         }
+        .alert(
+            "Delete Template",
+            isPresented: isShowingDeleteAlert,
+            presenting: templatePendingDeletion,
+            actions: { template in
+                Button("Delete", role: .destructive) {
+                    deleteTemplate(template)
+                }
+                Button("Cancel", role: .cancel) { }
+            },
+            message: { template in
+                Text("Delete \(template.name)? This action cannot be undone.")
+            }
+        )
         .alert("Template Error", isPresented: isShowingError) {
             Button("OK", role: .cancel) {
                 errorMessage = nil
@@ -190,6 +96,121 @@ struct AddTemplateView: View {
         } message: {
             Text(errorMessage ?? "An unknown error occurred.")
         }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if exercises.isEmpty {
+            emptyStateContent
+        } else {
+            populatedContent
+        }
+    }
+
+    private var emptyStateContent: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            titleCard
+            Spacer(minLength: 0)
+            emptyExercisesView
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var populatedContent: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 14) {
+                titleCard
+
+                ForEach(Array(exercises.enumerated()), id: \.element.id) { index, exercise in
+                    exerciseCard(exerciseIndex: index, exercise: exercise)
+                }
+
+                addExerciseLink
+            }
+            .padding(.vertical, 12)
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .cancellationAction) {
+            Button("Cancel") {
+                cancelTapped()
+            }
+        }
+
+        ToolbarItem(placement: .topBarTrailing) {
+            settingsMenu
+        }
+
+        ToolbarItem(placement: .confirmationAction) {
+            Button("Save") {
+                saveTemplate()
+            }
+            .disabled(!canSave)
+        }
+
+        ToolbarItemGroup(placement: .keyboard) {
+            if focusedField != nil {
+                Spacer()
+                Button {
+                    dismissKeyboard()
+                } label: {
+                    Image(systemName: "keyboard.chevron.compact.down")
+                }
+                .accessibilityLabel("Hide keyboard")
+            }
+        }
+    }
+
+    private var settingsMenu: some View {
+        Menu {
+            Button("Reorder exercise", systemImage: "arrow.up.arrow.down") {
+                isShowingReorderSheet = true
+            }
+            .disabled(exercises.isEmpty)
+
+            Button("Settings", systemImage: "gearshape") { }
+                .disabled(true)
+
+            Button("Delete", systemImage: "trash", role: .destructive) {
+                templatePendingDeletion = existingTemplate
+            }
+            .disabled(existingTemplate == nil)
+        } label: {
+            Image(systemName: "ellipsis.circle")
+        }
+        .accessibilityLabel("Template settings")
+    }
+
+    private func exercisePickerSheet(for context: ActiveExercisePicker) -> some View {
+        NavigationStack {
+            ExercisePickerView(
+                exercises: selectableExercises,
+                initiallySelectedIDs: [],
+                selectionMode: .single,
+                allowsCustomExerciseCreation: true,
+                actionTitle: context.actionTitle,
+                onAddSelected: { selectedExerciseItems in
+                    guard let selectedExercise = selectedExerciseItems.first else {
+                        return
+                    }
+                    handleExercisePickerSelection(selectedExercise, context: context)
+                }
+            )
+        }
+    }
+
+    private func reorderSheet() -> some View {
+        TemplateExerciseReorderSheet(
+            exercises: exercises,
+            onSave: { reorderedExercises in
+                exercises = reorderedExercises
+                isShowingReorderSheet = false
+            }
+        )
     }
 
     private var titleCard: some View {
@@ -264,23 +285,17 @@ struct AddTemplateView: View {
             }
 
             Button("Replace", systemImage: "arrow.triangle.2.circlepath") {
-                activeReplacePicker = ReplaceExerciseContext(id: exercise.id)
+                activeExercisePicker = .replace(exerciseID: exercise.id)
             }
             Button("Create superset", systemImage: "link") { }
 
             Divider()
 
             Button("Add exercise above", systemImage: "arrow.up") {
-                activeInsertPicker = InsertExerciseContext(
-                    targetExerciseID: exercise.id,
-                    direction: .above
-                )
+                activeExercisePicker = .insert(exerciseID: exercise.id, direction: .above)
             }
             Button("Add exercise below", systemImage: "arrow.down") {
-                activeInsertPicker = InsertExerciseContext(
-                    targetExerciseID: exercise.id,
-                    direction: .below
-                )
+                activeExercisePicker = .insert(exerciseID: exercise.id, direction: .below)
             }
 
             Divider()
@@ -377,7 +392,7 @@ struct AddTemplateView: View {
                 Button {
                     presentRestPicker(for: exerciseID, setID: setID)
                 } label: {
-                    Text(restTimerFieldLabel(for: exercises[exerciseIndex].sets[setIndex].restSeconds))
+                    Text(restTimerLabel(for: exercises[exerciseIndex].sets[setIndex].restSeconds))
                         .font(.headline.weight(.semibold))
                         .foregroundStyle(exercises[exerciseIndex].sets[setIndex].restSeconds == nil ? .secondary : .primary)
                         .frame(maxWidth: .infinity, minHeight: 44)
@@ -418,7 +433,7 @@ struct AddTemplateView: View {
                 Picker("Rest", selection: $pendingRestSeconds) {
                     Text("Off").tag(RestPickerContext.offValue)
                     ForEach(RestPickerContext.values, id: \.self) { seconds in
-                        Text(restTimerLabel(seconds))
+                    Text(restTimerLabel(for: seconds))
                             .tag(seconds)
                     }
                 }
@@ -460,6 +475,17 @@ struct AddTemplateView: View {
         )
     }
 
+    private var isShowingDeleteAlert: Binding<Bool> {
+        Binding(
+            get: { templatePendingDeletion != nil },
+            set: { isPresented in
+                if !isPresented {
+                    templatePendingDeletion = nil
+                }
+            }
+        )
+    }
+
     private var selectableExercises: [ExercisePickerItem] {
         availableExercises.map(\.pickerItem)
     }
@@ -476,14 +502,27 @@ struct AddTemplateView: View {
         exercises.removeAll { $0.id == exerciseID }
     }
 
-    private func insertExercise(_ exercise: ExercisePickerItem, around context: InsertExerciseContext) {
+    private func handleExercisePickerSelection(_ exercise: ExercisePickerItem, context: ActiveExercisePicker) {
+        switch context {
+        case .replace(let exerciseID):
+            replaceExercise(exerciseID, with: exercise)
+        case .insert(let exerciseID, let direction):
+            insertExercise(exercise, relativeTo: exerciseID, direction: direction)
+        }
+    }
+
+    private func insertExercise(
+        _ exercise: ExercisePickerItem,
+        relativeTo targetExerciseID: UUID,
+        direction: InsertExerciseDirection
+    ) {
         guard !exercises.contains(where: { $0.exerciseID == exercise.id }),
-              let index = exercises.firstIndex(where: { $0.id == context.targetExerciseID })
+              let index = exercises.firstIndex(where: { $0.id == targetExerciseID })
         else {
             return
         }
 
-        let insertionIndex = switch context.direction {
+        let insertionIndex = switch direction {
         case .above:
             index
         case .below:
@@ -508,6 +547,18 @@ struct AddTemplateView: View {
         }
 
         exercises[index].sets.append(.empty)
+    }
+
+    private func deleteTemplate(_ template: WorkoutTemplate) {
+        modelContext.delete(template)
+        templatePendingDeletion = nil
+
+        do {
+            try modelContext.save()
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     private func deleteSet(exerciseID: UUID, setID: UUID, animated: Bool = false) {
@@ -576,7 +627,7 @@ struct AddTemplateView: View {
         }
     }
 
-    private func restTimerLabel(_ seconds: Int?) -> String {
+    private func restTimerLabel(for seconds: Int?) -> String {
         guard let seconds else { return "Off" }
 
         if seconds < 60 {
@@ -589,16 +640,8 @@ struct AddTemplateView: View {
         return "\(minutes)m \(remainingSeconds)s"
     }
 
-    private func restTimerFieldLabel(for seconds: Int?) -> String {
-        guard let seconds else {
-            return "Off"
-        }
-
-        return restTimerLabel(seconds)
-    }
-
     private func restFieldAccessibilityLabel(for seconds: Int?) -> String {
-        "Rest timer \(restTimerFieldLabel(for: seconds))"
+        "Rest timer \(restTimerLabel(for: seconds))"
     }
 
     private func setTypeAccessibilityLabel(
@@ -990,16 +1033,26 @@ private struct RestPickerContext: Identifiable {
     var id: UUID { setID }
 }
 
-private struct ReplaceExerciseContext: Identifiable {
-    let id: UUID
-}
-
-private struct InsertExerciseContext: Identifiable {
-    let targetExerciseID: UUID
-    let direction: InsertExerciseDirection
+private enum ActiveExercisePicker: Identifiable {
+    case replace(exerciseID: UUID)
+    case insert(exerciseID: UUID, direction: InsertExerciseDirection)
 
     var id: String {
-        "\(targetExerciseID.uuidString)-\(direction.rawValue)"
+        switch self {
+        case .replace(let exerciseID):
+            "replace-\(exerciseID.uuidString)"
+        case .insert(let exerciseID, let direction):
+            "insert-\(exerciseID.uuidString)-\(direction.rawValue)"
+        }
+    }
+
+    var actionTitle: String {
+        switch self {
+        case .replace:
+            "Replace"
+        case .insert:
+            "Add"
+        }
     }
 }
 
@@ -1009,93 +1062,13 @@ private enum InsertExerciseDirection: String {
 }
 
 #Preview("Filled Template") {
-    AddTemplateSheetPreview(template: AddTemplateViewPreview.sampleTemplate)
-    .modelContainer(AddTemplateViewPreview.filledContainer)
+    AddTemplateSheetPreview(template: IronRecordPreview.sampleTemplate)
+    .modelContainer(IronRecordPreview.container)
 }
 
 #Preview("Empty Template") {
     AddTemplateSheetPreview()
-    .modelContainer(AddTemplateViewPreview.emptyContainer)
-}
-
-private enum AddTemplateViewPreview {
-    static let filledContainer = makeContainer(includeSampleTemplate: true)
-    static let emptyContainer = makeContainer(includeSampleTemplate: false)
-
-    static var sampleTemplate: WorkoutTemplate {
-        let descriptor = FetchDescriptor<WorkoutTemplate>(sortBy: [SortDescriptor(\.createdAt)])
-        return try! filledContainer.mainContext.fetch(descriptor).first!
-    }
-
-    private static func makeContainer(includeSampleTemplate: Bool) -> ModelContainer {
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try! ModelContainer(
-            for: Exercise.self,
-            WorkoutTemplate.self,
-            TemplateExercise.self,
-            TemplateExerciseSet.self,
-            configurations: configuration
-        )
-        let context = container.mainContext
-        try! SeedData.seedIfNeeded(in: context)
-
-        guard includeSampleTemplate else {
-            return container
-        }
-
-        let descriptor = FetchDescriptor<Exercise>(sortBy: [SortDescriptor(\.name)])
-        let exercises = try! context.fetch(descriptor)
-        let previewExercises = Array(exercises.prefix(2))
-
-        let template = WorkoutTemplate(name: "Leg Day")
-        context.insert(template)
-
-        template.exercises = previewExercises.enumerated().map { index, exercise in
-            let templateExercise = TemplateExercise(
-                position: index + 1,
-                targetSets: 3,
-                targetReps: index == 0 ? "8" : "10",
-                restSeconds: index == 0 ? 90 : 75,
-                notes: index == 0 ? "Controlled eccentric" : "",
-                template: template,
-                exercise: exercise
-            )
-
-            templateExercise.prescribedSets = [
-                TemplateExerciseSet(
-                    position: 1,
-                    prescribedWeight: index == 0 ? 60 : 140,
-                    targetReps: index == 0 ? 8 : 10,
-                    restSeconds: index == 0 ? 90 : 75,
-                    typeRawValue: TemplateSetType.normal.rawValue,
-                    templateExercise: templateExercise
-                ),
-                TemplateExerciseSet(
-                    position: 2,
-                    prescribedWeight: index == 0 ? 60 : 140,
-                    targetReps: index == 0 ? 8 : 10,
-                    restSeconds: index == 0 ? 90 : 75,
-                    typeRawValue: index == 0 ? TemplateSetType.warmUp.rawValue : TemplateSetType.failure.rawValue,
-                    templateExercise: templateExercise
-                ),
-                TemplateExerciseSet(
-                    position: 3,
-                    prescribedWeight: index == 0 ? 62.5 : 145,
-                    targetReps: index == 0 ? 8 : 8,
-                    restSeconds: index == 0 ? 90 : 75,
-                    typeRawValue: TemplateSetType.normal.rawValue,
-                    templateExercise: templateExercise
-                )
-            ]
-
-            context.insert(templateExercise)
-            templateExercise.prescribedSets.forEach(context.insert)
-            return templateExercise
-        }
-
-        try! context.save()
-        return container
-    }
+    .modelContainer(IronRecordPreview.container)
 }
 
 private struct AddTemplateSheetPreview: View {

@@ -234,15 +234,7 @@ struct TemplatesView: View {
 
 #Preview {
     TemplatesPreviewHost()
-        .modelContainer(TemplatesPreview.container)
-}
-
-private enum TemplatesPreview {
-    static let container: ModelContainer = {
-        let container = IronRecordModelContainer.makeContainer(inMemory: true)
-        try! SeedData.seedIfNeeded(in: container.mainContext)
-        return container
-    }()
+        .modelContainer(IronRecordPreview.container)
 }
 
 private struct TemplatesPreviewHost: View {

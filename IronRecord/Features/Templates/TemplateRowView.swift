@@ -54,29 +54,14 @@ struct TemplateRowView: View {
 
 #Preview {
     NavigationStack {
-        if let template = TemplateRowPreview.sampleTemplate {
-            TemplateRowView(
-                template: template,
-                onEditTapped: {},
-                onDuplicateTapped: {},
-                onDeleteTapped: {},
-                onStartTapped: {}
-            )
-            .padding()
-        }
+        TemplateRowView(
+            template: IronRecordPreview.sampleTemplate,
+            onEditTapped: {},
+            onDuplicateTapped: {},
+            onDeleteTapped: {},
+            onStartTapped: {}
+        )
+        .padding()
     }
-    .modelContainer(TemplateRowPreview.container)
-}
-
-private enum TemplateRowPreview {
-    static let container: ModelContainer = {
-        let container = IronRecordModelContainer.makeContainer(inMemory: true)
-        try! SeedData.seedIfNeeded(in: container.mainContext)
-        return container
-    }()
-
-    static var sampleTemplate: WorkoutTemplate? {
-        let descriptor = FetchDescriptor<WorkoutTemplate>(sortBy: [SortDescriptor(\.createdAt)])
-        return try? container.mainContext.fetch(descriptor).first
-    }
+    .modelContainer(IronRecordPreview.container)
 }

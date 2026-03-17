@@ -96,35 +96,8 @@ private struct ReorderExerciseRow: View {
 
 #Preview("Reorder Sheet") {
     TemplateExerciseReorderSheet(
-        exercises: [
-            TemplateExerciseDraft(
-                exerciseID: nil,
-                name: "Overhead Triceps Extension",
-                equipment: "Cable (Single)",
-                notes: "",
-                notesVisible: false,
-                showsRestTimer: false,
-                sets: Array(repeating: .empty, count: 3)
-            ),
-            TemplateExerciseDraft(
-                exerciseID: nil,
-                name: "Incline Bench Press",
-                equipment: "Dumbbell (Double)",
-                notes: "",
-                notesVisible: false,
-                showsRestTimer: false,
-                sets: Array(repeating: .empty, count: 3)
-            ),
-            TemplateExerciseDraft(
-                exerciseID: nil,
-                name: "Close Grip Bench Press",
-                equipment: "Barbell",
-                notes: "",
-                notesVisible: false,
-                showsRestTimer: false,
-                sets: Array(repeating: .empty, count: 2)
-            )
-        ],
+        exercises: IronRecordPreview.reorderDrafts,
         onSave: { _ in }
     )
+    .modelContainer(IronRecordPreview.container)
 }

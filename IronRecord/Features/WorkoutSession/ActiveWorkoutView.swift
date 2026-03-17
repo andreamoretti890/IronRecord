@@ -185,27 +185,7 @@ struct ActiveWorkoutView: View {
 
 #Preview {
     ActiveWorkoutPreviewHost()
-    .modelContainer(ActiveWorkoutPreview.container)
-}
-
-private enum ActiveWorkoutPreview {
-    static let container: ModelContainer = {
-        let container = IronRecordModelContainer.makeContainer(inMemory: true)
-        try! SeedData.seedIfNeeded(in: container.mainContext)
-        return container
-    }()
-
-    static func makeSession() -> WorkoutSession? {
-        let descriptor = FetchDescriptor<WorkoutTemplate>(sortBy: [SortDescriptor(\.createdAt)])
-        guard let template = try? container.mainContext.fetch(descriptor).first else {
-            return nil
-        }
-
-        let session = WorkoutSession.make(from: template)
-        container.mainContext.insert(session)
-        try! container.mainContext.save()
-        return session
-    }
+    .modelContainer(IronRecordPreview.container)
 }
 
 private struct ActiveWorkoutPreviewHost: View {
@@ -226,7 +206,7 @@ private struct ActiveWorkoutPreviewHost: View {
         }
         .onAppear {
             if session == nil {
-                session = ActiveWorkoutPreview.makeSession()
+                session = IronRecordPreview.session()
             }
         }
     }

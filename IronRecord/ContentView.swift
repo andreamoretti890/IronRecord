@@ -61,5 +61,5 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
-        .modelContainer(IronRecordModelContainer.makeContainer(inMemory: true))
+        .modelContainer(IronRecordPreview.container)
 }

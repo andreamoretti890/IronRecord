@@ -363,15 +363,7 @@ private enum CustomExerciseSheet: String, Identifiable {
 
 #Preview("Standard Flow") {
     CreateCustomExercisePreviewHost()
-        .modelContainer(CreateCustomExercisePreview.container)
-}
-
-private enum CreateCustomExercisePreview {
-    static let container: ModelContainer = {
-        let container = IronRecordModelContainer.makeContainer(inMemory: true)
-        try! SeedData.seedIfNeeded(in: container.mainContext)
-        return container
-    }()
+        .modelContainer(IronRecordPreview.container)
 }
 
 private struct CreateCustomExercisePreviewHost: View {
