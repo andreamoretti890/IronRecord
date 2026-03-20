@@ -102,7 +102,7 @@ struct WorkoutSessionExerciseCard: View {
                     .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
             }
         } rowsContent: {
-            LazyVStack(spacing: 8) {
+            List {
                 ForEach(exercise.sortedSets) { sessionSet in
                     WorkoutSessionSetRow(
                         session: session,
@@ -116,10 +116,24 @@ struct WorkoutSessionExerciseCard: View {
                         }
                     )
                     .id(sessionSet.persistentModelID)
-                    .transition(setRowTransition)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            withAnimation(.snappy(duration: 0.22, extraBounce: 0)) {
+                                deleteSet(sessionSet)
+                            }
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                        .disabled(isPaused)
+                    }
+                    .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
                 }
             }
-            .animation(.snappy(duration: 0.28, extraBounce: 0.03), value: exercise.sortedSets.count)
+            .listStyle(.plain)
+            .scrollDisabled(true)
+            .frame(height: estimatedListHeight)
         }
         .sheet(item: $activeReplacePicker) { context in
             NavigationStack {
@@ -176,6 +190,28 @@ struct WorkoutSessionExerciseCard: View {
             }
         )
     }
+    
+    private var estimatedListHeight: CGFloat {
+        let rowHeights = exercise.sortedSets.map { estimatedRowHeight(for: $0) }
+        // Add spacing equivalent between rows (previously 8)
+        let spacing = max(0, exercise.sortedSets.count - 1) * 8
+        return rowHeights.reduce(0, +) + CGFloat(spacing)
+    }
+
+    private func estimatedRowHeight(for set: WorkoutSessionSet) -> CGFloat {
+        // Base control row height from TextFields' minHeight
+        var height: CGFloat = 44
+
+        // Add rest strip if visible for this set
+        if showsRestDetails && set.effectiveRestSeconds > 0 {
+            // Spacing between row and rest strip
+            height += 8
+            // Approximate rest strip height (label with padding and background)
+            height += 32
+        }
+
+        return height
+    }
 
     private func addSet() {
         let nextPosition = (exercise.sortedSets.last?.position ?? 0) + 1
@@ -192,6 +228,28 @@ struct WorkoutSessionExerciseCard: View {
         )
 
         exercise.sets.append(newSet)
+        onSave()
+    }
+
+    private func deleteSet(_ targetSet: WorkoutSessionSet) {
+        guard let session = exercise.session else {
+            return
+        }
+
+        // If a rest timer is active for this exercise, clear it when modifying sets
+        if let activeRest = session.activeRestIdentifier,
+           activeRest.exercisePosition == exercise.position {
+            session.clearActiveRest()
+        }
+
+        // Remove the set
+        exercise.sets.removeAll { $0.persistentModelID == targetSet.persistentModelID }
+
+        // Renormalize positions
+        for (index, set) in exercise.sortedSets.enumerated() {
+            set.position = index + 1
+        }
+
         onSave()
     }
 

@@ -183,6 +183,7 @@ struct AddTemplateView: View {
             Image(systemName: "ellipsis.circle")
         }
         .accessibilityLabel("Template settings")
+        .disabled(exercises.isEmpty && existingTemplate == nil)
     }
 
     private func exercisePickerSheet(for context: ActiveExercisePicker) -> some View {

@@ -1,67 +1,128 @@
 # IronRecord Agent Guide
 
-## Objective
-- Build an offline-first iOS app for logging gym progress.
-- Use SwiftUI for UI and SwiftData for local persistence.
-- Current scope covers reusable workout templates.
+## Project Overview
+IronRecord is an offline-first iOS gym logging app.
+- UI: SwiftUI
+- Persistence: SwiftData (local only, no sync)
+- Target: iOS 26 (beta — treat all APIs as potentially undocumented;
+  prefer explicit skill lookups over training-data assumptions)
+- Language: Swift 6, strict concurrency
 
-## Architecture (Minimal, Scalable)
-- Pattern: feature-first SwiftUI over shared SwiftData models.
-- Data flow:
-  - Views read persisted data with `@Query`.
-  - Feature views write through `modelContext` and save explicitly after mutations.
-  - Keep transient UI state local to the feature view that owns the interaction.
-- Keep models as source of truth; avoid duplicating persisted data in parallel model layers.
+---
 
 ## Domain Boundaries
 - `Exercise`: canonical movement catalog entry.
 - `WorkoutTemplate`: reusable workout definition.
 - `TemplateExercise`: ordered exercise prescription within a template.
 - `TemplateExerciseSet`: per-set template prescription metadata.
+- `TemplateSetType`: set types.
 
-## Current Product Behavior
-- App opens directly into Templates.
-- Seed data backfills starter exercises and starter templates on launch.
-- Templates are persisted with SwiftData and support create, edit, duplicate, and delete flows.
-- Template editing supports:
-  - Editable title.
-  - Add/remove/replace exercises.
-  - Exercise notes, rest timer editing, and per-set prescription editing.
-  - Save disabled until title is non-empty and at least one exercise exists.
-  - Interactive swipe-to-dismiss disabled for template forms.
-- Exercise picker supports:
-  - Search with initial focus.
-  - Multi-select and add selected exercises.
-  - Filters for body part, equipment, and mode (mode is filter-only, not shown in rows).
+---
 
-## Constraints
-- Minimum deployment target is iOS 26.
-- App must function without network connectivity.
-- Seed operation must remain idempotent and safe to run on each launch.
-- Seed must backfill missing starter entities in partially initialized stores.
-- Prefer additive migrations; do not break existing user template/exercise data.
+## Hard Constraints
+- iOS 26 minimum deployment target — no iOS 17/18 fallbacks.
+- No network dependency — app must be fully functional offline.
+- Seed must be idempotent: safe to re-run on every launch.
+- Seed must backfill missing entities in partially initialized stores.
+- Prefer additive SwiftData migrations; never break existing user data.
+- Do not introduce `@StateObject` or `ObservableObject` — use `@Observable`.
+
+---
 
 ## Working Rules
-- Add new screens under `IronRecord/Features/<FeatureName>/`.
-- Add shared model changes under `IronRecord/Models/` first.
-- Update `IronRecord/Seed/SeedData.swift` when introducing core entities needed for first-run UX.
-- Keep naming explicit and domain-oriented (`WorkoutTemplate`, not `TemplateManager`).
-- Include lightweight previews for user-facing SwiftUI screens.
-- Keep feature files split by responsibility instead of collapsing templates or session flows into one file.
+1. New screens → `IronRecord/Features/<FeatureName>/`
+2. Model changes → `IronRecord/Models/` first, then update seed if needed
+3. Seed changes → `IronRecord/Seed/SeedData.swift`
+4. Names must be explicit and domain-oriented: `WorkoutTemplate`, not `TemplateManager`
+5. Split files by responsibility — no God files
+6. Every user-facing SwiftUI view needs a `#Preview` with multiple states
+   (empty, populated, loading/error if applicable)
 
-## Skills
-- Use `swiftui-pro` for any task that reads, writes, reviews, or refactors SwiftUI views in this repo.
-- Use `swiftui-pro` when touching navigation, sheets, alerts, forms, lists, accessibility, animations, or SwiftUI performance behavior.
-- Use `swiftui-pro` before proposing modern SwiftUI API migrations or non-trivial UI structure changes.
-- Skip `swiftui-pro` only for tasks that are strictly non-UI, such as pure SwiftData model changes, seed data updates, or repo documentation with no SwiftUI impact.
+---
 
-## Manual Verification Commands
-- Build:
-  - `xcodebuild -project IronRecord.xcodeproj -scheme IronRecord -destination 'generic/platform=iOS' -derivedDataPath /tmp/IronRecordDerivedData build CODE_SIGNING_ALLOWED=NO`
+## Skills - How to use
+> **Rule: Always read the skill file fully before writing any code
+> related to that skill's domain. Do not rely on training-data patterns
+> for SwiftUI or SwiftData — the skill files encode the correct patterns
+> for this project.**
+
+### Skill Reference
+
+| Skill                  | Read When...                                                                 |
+|------------------------|------------------------------------------------------------------------------|
+| `swiftui-expert-skill` | Starting any SwiftUI task. Load this first, always.                          |
+| `swiftui-patterns`     | After `swiftui-expert-skill`, for structural layout or view composition.     |
+| `swiftdata`            | Any read/write/query/migration/model change involving SwiftData.             |
+| `swiftui-navigation`   | Touching `NavigationStack`, sheets, `.navigationDestination`, tabs, links.   |
+| `swiftui-gestures`     | Implementing swipe, drag, long-press, or any `Gesture` type.                 |
+
+### Skill Load Order (most common combos)
+- **New feature screen**: `swiftui-expert-skill` → `swiftui-patterns` → `swiftui-navigation`
+- **Model + view change**: `swiftdata` → `swiftui-expert-skill`
+- **Gesture on a list row**: `swiftui-expert-skill` → `swiftui-gestures`
+- **API migration**: `swiftui-expert-skill` first, check SosumiMCP for diffs
+
+---
+
+## MCP Servers
+
+### XcodeBuildMCP — Build & Validate
+Use XcodeBuildMCP to compile and validate code. Do not guess whether code compiles.
+
+**When to use:**
+- After implementing or modifying any Swift file
+- After a SwiftData model change
+- Before declaring a task complete
+
+**Workflow:**
+1. Run the build tool targeting the `IronRecord` scheme, iOS 26 simulator
+2. If build fails:
+   - Read the full error output
+   - Fix all errors (not just the first)
+   - Rebuild — repeat until clean
+3. A task is not done until the build is clean
+
+**Do not:**
+- Skip the build step and assume code is correct
+- Declare success with unresolved warnings that look like errors
+
+### SosumiMCP — Apple API Reference
+SosumiMCP provides up-to-date Apple SDK documentation and API diffs.
+Use it when you are uncertain about an API's availability, signature, or
+behavior on iOS 26 — especially for SwiftUI and SwiftData, which changed
+significantly in recent OS versions.
+
+**When to use:**
+- Before using any SwiftUI or SwiftData API that may have changed post-iOS 17
+- When XcodeBuildMCP returns a "no such modifier/method" or deprecation error
+- When proposing a modern API migration (check the diff first)
+- When seed or migration logic touches SwiftData schema versioning APIs
+
+**Workflow:**
+- Query SosumiMCP for the specific symbol or feature
+- Confirm availability on iOS 26
+- Then write the code
+
+---
 
 ## Definition of Done for New Features
-- Compiles cleanly for iOS 26 target.
-- Is reachable from existing root navigation.
-- Handles empty-state UI.
-- Preserves offline behavior.
-- If persistence is in scope, writes/reads through SwiftData correctly.
+A task is complete when **all** of the following are true:
+
+- [ ] XcodeBuildMCP build passes cleanly (zero errors) for iOS 26
+- [ ] Feature is reachable from existing root navigation
+- [ ] Empty-state UI is handled
+- [ ] Offline behavior is preserved (no network calls introduced)
+- [ ] If persistence is in scope: reads/writes go through SwiftData models only
+- [ ] SwiftUI previews exist with at least two states (empty + populated)
+- [ ] Seed remains idempotent if new core entities were added
+
+---
+
+## Common Pitfalls (Do Not Do These)
+- Do not use `@StateObject` / `ObservableObject` — use `@Observable` macro
+- Do not duplicate SwiftData model data into separate in-memory structs
+- Do not add network calls — this app is fully offline
+- Do not add a new `NavigationStack` inside a feature that is already inside one
+- Do not write SwiftData queries outside of a `@Query` property or explicit
+  `ModelContext` fetch — no raw container access in views
+- Do not overcomplicate things

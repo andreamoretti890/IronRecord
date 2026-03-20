@@ -110,7 +110,7 @@ struct ExerciseCard<MenuContent: View, NotesContent: View, RowsContent: View>: V
                         .frame(width: 36, height: 36)
                         .background(
                             (isRestTimerActive ? Color.accentColor.opacity(0.14) : Color(.tertiarySystemBackground)),
-                            in: RoundedRectangle(cornerRadius: 10)
+                            in: Circle()
                         )
                 }
                 .buttonStyle(.plain)
@@ -127,7 +127,7 @@ struct ExerciseCard<MenuContent: View, NotesContent: View, RowsContent: View>: V
                         .frame(width: 36, height: 36)
                         .background(
                             Color(.tertiarySystemBackground),
-                            in: RoundedRectangle(cornerRadius: 10)
+                            in: Circle()
                         )
                 }
                 .buttonStyle(.plain)
@@ -157,7 +157,7 @@ struct ExerciseCard<MenuContent: View, NotesContent: View, RowsContent: View>: V
                     .frame(width: 44)
             }
         }
-        .font(.subheadline.weight(.semibold))
+        .font(.footnote.weight(.semibold))
         .foregroundStyle(.secondary)
     }
 
@@ -188,4 +188,33 @@ struct ExerciseCard<MenuContent: View, NotesContent: View, RowsContent: View>: V
 
         return joined.uppercased()
     }
+}
+
+#Preview("ExerciseCard Header - Circular Menu Button") {
+    ExerciseCard(
+        title: "Barbell Bench Press",
+        equipmentText: "Barbell, Bench",
+        horizontalPadding: 16,
+        showsBadge: true,
+        tableStyle: .activeWorkout,
+        showsRestTimerControl: true,
+        isRestTimerActive: false,
+        onToggleRestTimer: {},
+        showsMenu: true,
+        addSetTitle: "Add Set",
+        onAddSet: {},
+        menuContent: {
+            Button("Edit", action: {})
+            Button("Delete", role: .destructive, action: {})
+        },
+        notesContent: {
+            Text("Keep elbows at 45°.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        },
+        rowsContent: {
+            EmptyView()
+        }
+    )
+    .padding()
 }

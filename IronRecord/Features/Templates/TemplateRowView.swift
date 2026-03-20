@@ -10,7 +10,7 @@ struct TemplateRowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .center, spacing: 8) {
                 Text(template.name)
                     .font(.headline)
 
@@ -27,7 +27,7 @@ struct TemplateRowView: View {
                         onDeleteTapped()
                     }
                 } label: {
-                    Image(systemName: "ellipsis.circle")
+                    Image(systemName: "ellipsis")
                         .font(.title3)
                         .foregroundStyle(.secondary)
                         .accessibilityLabel("Template actions")
@@ -44,11 +44,11 @@ struct TemplateRowView: View {
             Button("Start Template") {
                 onStartTapped()
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.bordered)
             .accessibilityHint("Starts \(template.name)")
         }
         .padding(14)
-        .background(.quaternary.opacity(0.35), in: .rect(cornerRadius: 14))
+        .background(.quaternary.opacity(0.45), in: .rect(cornerRadius: 20))
     }
 }
 
