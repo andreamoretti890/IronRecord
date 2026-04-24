@@ -54,7 +54,6 @@ struct TemplateExerciseReorderSheet: View {
     }
 }
 
-
 private struct ReorderExerciseRow: View {
     let exercise: TemplateExerciseDraft
 

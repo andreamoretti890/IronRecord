@@ -190,7 +190,7 @@ struct WorkoutSessionExerciseCard: View {
             }
         )
     }
-    
+
     private var estimatedListHeight: CGFloat {
         let rowHeights = exercise.sortedSets.map { estimatedRowHeight(for: $0) }
         // Add spacing equivalent between rows (previously 8)

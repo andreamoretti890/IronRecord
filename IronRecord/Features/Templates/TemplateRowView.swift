@@ -40,7 +40,7 @@ struct TemplateRowView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
                 .truncationMode(.tail)
-            
+
             Button("Start Template") {
                 onStartTapped()
             }

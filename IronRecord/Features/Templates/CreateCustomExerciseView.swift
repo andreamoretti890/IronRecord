@@ -231,7 +231,7 @@ struct CreateCustomExerciseView: View {
                 isSelected: !selectedBodyParts.isEmpty,
                 action: action
             )
-            
+
             if !selectedBodyParts.isEmpty {
                 ScrollView(.horizontal) {
                     HStack(spacing: 8) {

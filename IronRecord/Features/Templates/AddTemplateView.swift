@@ -744,7 +744,7 @@ struct AddTemplateView: View {
         }
 
         let template = existingTemplate ?? WorkoutTemplate(name: trimmedTitle)
-        
+
         template.name = trimmedTitle
 
         if existingTemplate == nil {
@@ -932,7 +932,7 @@ struct TemplateExerciseDraft: Identifiable {
         let sets: [TemplateSetDraft]
 
         if templateExercise.sortedPrescribedSets.isEmpty {
-            sets = (0..<max(templateExercise.targetSets, 1)).map { setIndex in
+            sets = (0..<max(templateExercise.targetSets, 1)).map { _ in
                 TemplateSetDraft(
                     repsText: templateExercise.targetReps
                         .trimmingCharacters(in: .whitespacesAndNewlines),

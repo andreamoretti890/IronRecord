@@ -436,8 +436,7 @@ private struct RepTarget {
         let components = trimmedValue.split(separator: "-", maxSplits: 1).map(String.init)
         if components.count == 2,
            let min = Int(components[0].trimmingCharacters(in: .whitespacesAndNewlines)),
-           let max = Int(components[1].trimmingCharacters(in: .whitespacesAndNewlines))
-        {
+           let max = Int(components[1].trimmingCharacters(in: .whitespacesAndNewlines)) {
             return RepTarget(exactReps: nil, repMin: min, repMax: max)
         }
 
